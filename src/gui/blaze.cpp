@@ -1,9 +1,9 @@
-#include "SDL_error.h"
-#include "SDL_events.h"
-#include "SDL_log.h"
-#include "SDL_render.h"
-#include "SDL_video.h"
 #include <SDL.h>
+#include <SDL_error.h>
+#include <SDL_events.h>
+#include <SDL_log.h>
+#include <SDL_render.h>
+#include <SDL_video.h>
 #include <blaze/color.hpp>
 
 namespace Blaze {

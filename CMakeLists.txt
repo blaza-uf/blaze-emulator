@@ -15,6 +15,8 @@ else()
 	find_package(SDL2 REQUIRED CONFIG COMPONENTS SDL2main)
 endif()
 
+add_subdirectory(vendor/catch2 EXCLUDE_FROM_ALL)
+
 add_library(blaze-core STATIC
 	src/core/core.cpp
 )
@@ -37,3 +39,13 @@ if(TARGET SDL2::SDL2main)
 endif()
 
 target_link_libraries(blaze PRIVATE SDL2::SDL2-static)
+
+add_executable(blaze-core-tests
+	test/color.cpp
+)
+
+target_link_libraries(blaze-core-tests PRIVATE blaze-core Catch2::Catch2WithMain)
+
+include(CTest)
+include(Catch)
+catch_discover_tests(blaze-core-tests)

@@ -6,7 +6,9 @@ Checks: >
   performance-*,
   portability-*,
   readability-*,
-  -modernize-use-trailing-return-type
+  -modernize-use-trailing-return-type,
+  -misc-use-anonymous-namespace,
+  -readability-function-cognitive-complexity
 
 WarningsAsErrors: >
   *,
