@@ -26,6 +26,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         build_type: [Release]
+        include:
+        - os: ubuntu-latest
+          os-short: linux
+        - os: windows-latest
+          os-short: windows
 
     steps:
     - uses: actions/checkout@v3
@@ -50,7 +55,7 @@ jobs:
 
     - name: Build
       # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
-      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }} --parallel 2
 
     - name: Test
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
@@ -61,5 +66,5 @@ jobs:
     - name: Upload build artifact
       uses: actions/upload-artifact@v3.1.3
       with:
-        name: emulator
+        name: ${{ matrix.os-short }}
         path: ${{ steps.strings.outputs.build-output-dir }}/${{ steps.strings.outputs.binary-output-path }}
