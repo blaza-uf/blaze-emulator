@@ -1,0 +1,7 @@
+.vscode
+.DS_Store
+._*
+.cache
+.ccache
+build
+compile_commands.json
