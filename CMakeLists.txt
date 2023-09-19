@@ -19,6 +19,7 @@ add_subdirectory(vendor/catch2 EXCLUDE_FROM_ALL)
 
 add_library(blaze-core STATIC
 	src/core/core.cpp
+ 	src/core/MemRam.cpp
 )
 
 target_include_directories(blaze-core PUBLIC
