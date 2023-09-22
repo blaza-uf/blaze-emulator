@@ -1,5 +1,6 @@
 #pragma once
 #include <iostream>
+#include "MemRam.cpp"
 
 class CPU{
 
@@ -18,9 +19,6 @@ class CPU{
         unsigned e: 1; // emulation mode
     } ; flags f;
 
-    using Byte = uint8_t;
-    using Word = uint16_t;
-
     Word A; // accumulator
     Word DR; // direct
     Word PC; // program counter
@@ -31,5 +29,6 @@ class CPU{
     Byte P; // process status
 
     public:
-        void reset();
+        void reset(MemRam &memory);
+        void execute(u32 cTicks, MemRam &memory);
 };
