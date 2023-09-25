@@ -11,6 +11,8 @@ namespace Blaze {
 	using Cycles = uint32_t;
 
 	struct CPU {
+		// TODO: Link to the system bus
+
 		//
 		// The various addressing modes support by the 65C816.
 		//
@@ -329,8 +331,9 @@ namespace Blaze {
 
 		Cycles executeBRA(ConditionCode condition, bool passConditionIfBitSet);
 
-		void reset(MemRam &memory);
-		void execute(ClockTicks cTicks);
+		void reset(MemRam &memory);      // Reset CPU internal state
+		void execute(ClockTicks cTicks); // Execute the current instruction
+		void clock();                    // CPU driver
 
 		void setFlag(flags f, bool s);
 	};
