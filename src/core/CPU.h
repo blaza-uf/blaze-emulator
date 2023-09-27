@@ -32,4 +32,7 @@ struct CPU{
 
     void reset(MemRam &memory);
     void execute(u32 cTicks, MemRam &memory);
+
+    void setFlag(flags f, bool s);
+
 };
