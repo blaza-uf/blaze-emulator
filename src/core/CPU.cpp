@@ -6,8 +6,13 @@ void CPU::reset(MemRam &memory) {
     X = Y = 0x00;
     SP = 0x0100;
 
-    f.d = 0;
-    f.m = f.x = f.i = f.c = f.e = 1;
+    setFlag(d, 0);
+
+    setFlag(m, 1);
+    setFlag(x, 1);
+    setFlag(i, 1);
+    setFlag(c, 1);
+
     memory.mem_init();
 }
 
@@ -19,4 +24,11 @@ void CPU::execute(u32 cycles, MemRam &memory) {
 
         // need to handle instructions
     }
+}
+
+void CPU::setFlag(CPU::flags flag, bool s) {
+    if(s)
+        P |= flag; // set flag
+    else
+        P &= ~flag; // clear flag
 }
