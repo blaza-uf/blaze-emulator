@@ -144,6 +144,10 @@ void Blaze::CPU::setFlag(CPU::flags flag, bool s) {
 		P &= ~flag; // clear flag
 }
 
+bool Blaze::CPU::getFlag(flags f) {
+	return (P & f) != 0;
+};
+
 Blaze::Byte Blaze::CPU::load8(Byte bank, Word addressLow) const {
 	// TODO: load from memory
 	return 0;
@@ -310,8 +314,8 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 				// so it must be Immediate. in this case, the instruction size depends
 				// on the CPU flags.
 				//
-				// when the `m` flag is zero, it takes up 3 bytes instead of 2.
-				instructionSize = (f.m == 0) ? 3 : 2;
+				// when the `m` flag is unset, it takes up 3 bytes instead of 2.
+				instructionSize = !getFlag(flags::m) ? 3 : 2;
 			}
 
 			outInstructionSize = instructionSize;
@@ -382,7 +386,7 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 
 			if (instructionSize == 0) {
 				// same as for Group 1 instructions
-				instructionSize = (f.m == 0) ? 3 : 2;
+				instructionSize = !getFlag(flags::m) ? 3 : 2;
 			}
 
 			outInstructionSize = instructionSize;
@@ -433,7 +437,7 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 
 			if (instructionSize == 0) {
 				// same as for Group 1 instructions
-				instructionSize = (f.m == 0) ? 3 : 2;
+				instructionSize = !getFlag(flags::m) ? 3 : 2;
 			}
 
 			outInstructionSize = instructionSize;
@@ -470,7 +474,7 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 
 			if (instructionSize == 0) {
 				// same as for Group 1 instructions
-				instructionSize = (f.m == 0) ? 3 : 2;
+				instructionSize = !getFlag(flags::m) ? 3 : 2;
 			}
 
 			outInstructionSize = instructionSize;

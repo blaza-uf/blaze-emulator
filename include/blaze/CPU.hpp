@@ -335,6 +335,7 @@ namespace Blaze {
 		void execute(ClockTicks cTicks); // Execute the current instruction
 		void clock();                    // CPU driver
 
+		bool getFlag(flags f);
 		void setFlag(flags f, bool s);
 	};
 } // namespace Blaze
