@@ -10,9 +10,9 @@ namespace Blaze {
 	using ClockTicks = uint32_t;
 	using Cycles = uint32_t;
 
-	class CPU {
+	struct CPU {
 		// TODO: Link to the system bus
-		
+
 		//
 		// The various addressing modes support by the 65C816.
 		//
@@ -204,20 +204,20 @@ namespace Blaze {
 		static const std::unordered_map<Byte, std::pair<Byte, Cycles(CPU::*)()>> SPECIAL_MULTI_BYTE_INSTRUCTIONS;
 		static const std::unordered_map<Byte, std::tuple<Byte, Cycles(CPU::*)(AddressingMode), Blaze::CPU::AddressingMode>> SPECIAL_MULTI_BYTE_INSTRUCTIONS_WITH_MODE;
 
-		struct flags {
+		enum flags: Byte {
 			// Process Status Flags
-			unsigned c: 1; // carry
-			unsigned z: 1; // zero
-			unsigned i: 1; // interrupt disable
-			unsigned d: 1; // decimal
-			unsigned x: 1; // index register width
-			unsigned b: 1; // break
-			unsigned m: 1; // accumulator & memory width
-			unsigned v: 1; // overflow
-			unsigned n: 1; // negative
-
-			unsigned e: 1; // emulation mode
+			c = (1 << 0), // carry
+			z = (1 << 1), // zero
+			i = (1 << 2), // interrupt disable
+			d = (1 << 3), // decimal
+			x = (1 << 4), // index register width
+			b = (1 << 4), // break
+			m = (1 << 5), // accumulator & memory width
+			v = (1 << 6), // overflow
+			n = (1 << 7), // negative
 		} ; flags f;
+
+		Byte e = 1; //emulation mode. separate from p register flags
 
 		Word A; // accumulator
 		Word DR; // direct
@@ -331,9 +331,11 @@ namespace Blaze {
 
 		Cycles executeBRA(ConditionCode condition, bool passConditionIfBitSet);
 
-	public:
-		void reset(MemRam &memory);			// Reset CPU internal state
-		void execute(ClockTicks cTicks);	// Execute the current instruction
-		void clock();						// CPU driver
+		void reset(MemRam &memory);      // Reset CPU internal state
+		void execute(ClockTicks cTicks); // Execute the current instruction
+		void clock();                    // CPU driver
+
+		bool getFlag(flags f);
+		void setFlag(flags f, bool s);
 	};
 } // namespace Blaze

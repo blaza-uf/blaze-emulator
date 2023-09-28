@@ -113,8 +113,13 @@ void Blaze::CPU::reset(MemRam &memory) {
 	X = Y = 0x00;
 	SP = 0x0100;
 
-	f.d = 0;
-	f.m = f.x = f.i = f.c = f.e = 1;
+	setFlag(d, false);
+
+	setFlag(m, true);
+	setFlag(x, true);
+	setFlag(i, true);
+	setFlag(c, true);
+
 	_memory = &memory;
 	_memory->reset();
 }
@@ -130,6 +135,17 @@ void Blaze::CPU::execute(ClockTicks cycles) {
 		PC += instrSize;
 	}
 }
+
+void Blaze::CPU::setFlag(CPU::flags flag, bool s) {
+	if (s)
+		P |= flag; // set flag
+	else
+		P &= ~flag; // clear flag
+}
+
+bool Blaze::CPU::getFlag(flags f) {
+	return (P & f) != 0;
+};
 
 Blaze::Byte Blaze::CPU::load8(Byte bank, Word addressLow) const {
 	// TODO: load from memory
@@ -297,8 +313,8 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 				// so it must be Immediate. in this case, the instruction size depends
 				// on the CPU flags.
 				//
-				// when the `m` flag is zero, it takes up 3 bytes instead of 2.
-				instructionSize = (f.m == 0) ? 3 : 2;
+				// when the `m` flag is unset, it takes up 3 bytes instead of 2.
+				instructionSize = !getFlag(flags::m) ? 3 : 2;
 			}
 
 			outInstructionSize = instructionSize;
@@ -369,7 +385,7 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 
 			if (instructionSize == 0) {
 				// same as for Group 1 instructions
-				instructionSize = (f.m == 0) ? 3 : 2;
+				instructionSize = !getFlag(flags::m) ? 3 : 2;
 			}
 
 			outInstructionSize = instructionSize;
@@ -420,7 +436,7 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 
 			if (instructionSize == 0) {
 				// same as for Group 1 instructions
-				instructionSize = (f.m == 0) ? 3 : 2;
+				instructionSize = !getFlag(flags::m) ? 3 : 2;
 			}
 
 			outInstructionSize = instructionSize;
@@ -457,7 +473,7 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 
 			if (instructionSize == 0) {
 				// same as for Group 1 instructions
-				instructionSize = (f.m == 0) ? 3 : 2;
+				instructionSize = !getFlag(flags::m) ? 3 : 2;
 			}
 
 			outInstructionSize = instructionSize;
