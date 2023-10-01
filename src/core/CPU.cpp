@@ -1,4 +1,5 @@
 #include <blaze/CPU.hpp>
+#include "blaze/Bus.hpp"
 
 const std::unordered_map<Blaze::Byte, Blaze::Cycles(Blaze::CPU::*)()> Blaze::CPU::SINGLE_BYTE_INSTRUCTIONS {
 	{ 0x40, &CPU::executeRTI },
@@ -133,6 +134,20 @@ void Blaze::CPU::execute(ClockTicks cycles) {
 		auto instrCycles = executeInstruction(instrSize);
 
 		PC += instrSize;
+	}
+}
+
+void Blaze::CPU::clock()
+{
+	// Read next instruction byte and increment PC; Always 1 cycle
+	Byte instrSize = 0;
+	Cycles cycles = executeInstruction(instrSize); // Set to # of cycles left to complete - 1
+	// Decode instruction and set cycles
+
+	// Execute Instruction for set # of cycles
+	while(cycles > 0)
+	{
+		--cycles;
 	}
 }
 
