@@ -16,6 +16,6 @@ namespace Blaze
 
 		//=== Bus Fucntionality ===
 		void write(Address addr, Byte data);
-		Blaze::Byte read(Word addr);
+		Byte read(Address addr);
 	};
 }
