@@ -1,18 +1,21 @@
 #pragma once
 
-#include"CPU.hpp"
+#include "blaze/CPU.hpp"
 
-class Bus
-{	
-public:
-	// Devices connected to the bus
-	// TODO: Connect cpu and RAM
-	
-	//=== Constructor & Destructor ===
-	Bus();
-	~Bus();
+namespace Blaze
+{
+	struct Bus
+	{
+		//=== Devices connected to the bus ===
+		CPU cpu;
+		MemRam ram;
 
-	//=== Bus Fucntionality ===
-	void write(Address addr, Byte data);
-	Byte read(Word addr);
-};
+		//=== Constructor & Destructor ===
+		Bus();
+		~Bus();
+
+		//=== Bus Fucntionality ===
+		void write(Address addr, Byte data);
+		Blaze::Byte read(Word addr);
+	};
+}
