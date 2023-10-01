@@ -10,6 +10,9 @@ namespace Blaze {
 	using ClockTicks = uint32_t;
 	using Cycles = uint32_t;
 
+	// Avoid circular inclusions by declaring Bus
+	struct Bus;
+
 	struct CPU {
 		// TODO: Link to the system bus
 
@@ -227,7 +230,10 @@ namespace Blaze {
 		Byte DBR; // data bank
 		Byte PBR; // program bank
 		Byte P; // process status
-		MemRam* _memory;
+		MemRam* _memory; // TODO: Replace direct memory access with Bus r/w
+
+		// System Bus
+		Bus *bus = nullptr;
 
 		Byte load8(Byte bank, Word addressLow) const;
 		Word load16(Byte bank, Word addressLow) const;
@@ -331,9 +337,11 @@ namespace Blaze {
 
 		Cycles executeBRA(ConditionCode condition, bool passConditionIfBitSet);
 
-		void reset(MemRam &memory);      // Reset CPU internal state
-		void execute(ClockTicks cTicks); // Execute the current instruction
-		void clock();                    // CPU driver
+		void reset(MemRam &memory);      		// Reset CPU internal state
+		void execute(ClockTicks cTicks); 		// Execute the current instruction
+		void clock();                    		// CPU driver
+		Byte read(Address addr);				// Read from the Bus
+		void write(Address addr, Byte data);	// Write to the Bus
 
 		bool getFlag(flags f);
 		void setFlag(flags f, bool s);
