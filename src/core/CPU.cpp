@@ -125,31 +125,39 @@ void Blaze::CPU::reset(MemRam &memory) {
 	_memory->reset();
 }
 
-void Blaze::CPU::execute(ClockTicks cycles) {
-	while(cycles > 0) {
-		const Byte* instruction = &(*_memory)[PC];
-		cycles--;
+void Blaze::CPU::execute() {
 
-		Byte instrSize = 0;
-		auto instrCycles = executeInstruction(instrSize);
+	// Read first 8 bytes of next instruction
+	//Byte* instruction = bus->read(PC);
 
-		PC += instrSize;
-	}
-}
-
-void Blaze::CPU::clock()
-{
-	// Read next instruction byte and increment PC; Always 1 cycle
+	// execute instruction and get # of cycles to run
 	Byte instrSize = 0;
-	Cycles cycles = executeInstruction(instrSize); // Set to # of cycles left to complete - 1
-	// Decode instruction and set cycles
+	auto cycles = executeInstruction(instrSize);
 
-	// Execute Instruction for set # of cycles
-	while(cycles > 0)
+	// Decrement cycles since fething an instruction is always 1 cycle
+	cycles--;
+	PC += instrSize;
+
+	// Count down cycles
+	while(cycles > 0) 
 	{
 		--cycles;
 	}
 }
+
+// void Blaze::CPU::clock()
+// {
+// 	// Read next instruction byte and increment PC; Always 1 cycle
+// 	Byte instrSize = 0;
+// 	Cycles cycles = executeInstruction(instrSize); // Set to # of cycles left to complete - 1
+// 	// Decode instruction and set cycles
+
+// 	// Execute Instruction for set # of cycles
+// 	while(cycles > 0)
+// 	{
+// 		--cycles;
+// 	}
+// }
 
 void Blaze::CPU::setFlag(CPU::flags flag, bool s) {
 	if (s)
@@ -516,7 +524,8 @@ Blaze::Cycles Blaze::CPU::invalidInstruction() {
 };
 
 const Blaze::Byte* Blaze::CPU::currentInstruction() const {
-	return &(*_memory)[PC];
+	// return &(*_memory)[PC];
+	return bus->read(PC);
 };
 
 Blaze::Cycles Blaze::CPU::executeBRK() {
