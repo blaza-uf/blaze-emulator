@@ -25,8 +25,8 @@ namespace Blaze
     }
 
     //=== Reading from the bus ===
-    Byte Bus::read(Address addr)
+    Byte* Bus::read(Address addr)
     {
-        return ram[addr];
+        return &(ram[addr]);
     }
 }
