@@ -125,6 +125,11 @@ void Blaze::CPU::reset(MemRam &memory) {
 	_memory->reset();
 }
 
+void Blaze::CPU::setZeroNegFlags (Byte a_x_y) {
+	setFlag(n, ((a_x_y & Negative) > 0));
+	setFlag(z, (a_x_y == 0));
+}
+
 void Blaze::CPU::execute() {
 
 	// Read first 8 bytes of next instruction
@@ -539,22 +544,22 @@ Blaze::Cycles Blaze::CPU::executeBRL() {
 };
 
 Blaze::Cycles Blaze::CPU::executeCLC() {
-	// TODO
+	setFlag(c, false);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeCLD() {
-	// TODO
+	setFlag(d, false);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeCLI() {
-	// TODO
+	setFlag(i, false);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeCLV() {
-	// TODO
+	setFlag(v, false);
 	return 0;
 };
 
@@ -564,22 +569,26 @@ Blaze::Cycles Blaze::CPU::executeCOP() {
 };
 
 Blaze::Cycles Blaze::CPU::executeDEX() {
-	// TODO
+	X--;
+	setZeroNegFlags(X);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeDEY() {
-	// TODO
+	Y--;
+	setZeroNegFlags(Y);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeINX() {
-	// TODO
+	X++;
+	setZeroNegFlags(X);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeINY() {
-	// TODO
+	Y++;
+	setZeroNegFlags(Y);
 	return 0;
 };
 
@@ -709,17 +718,22 @@ Blaze::Cycles Blaze::CPU::executeRTS() {
 };
 
 Blaze::Cycles Blaze::CPU::executeSEC() {
-	// TODO
+	setFlag(c, true);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeSED() {
-	// TODO
+	setFlag(d, true);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeSEI() {
-	// TODO
+	setFlag(i, true);
+	return 0;
+};
+
+Blaze::Cycles Blaze::CPU::executeSEV() {
+	setFlag(v, true);
 	return 0;
 };
 
@@ -734,12 +748,14 @@ Blaze::Cycles Blaze::CPU::executeSTP() {
 };
 
 Blaze::Cycles Blaze::CPU::executeTAX() {
-	// TODO
+	X = A;
+	setZeroNegFlags(X);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeTAY() {
-	// TODO
+	Y = A;
+	setZeroNegFlags(Y);
 	return 0;
 };
 
@@ -764,17 +780,19 @@ Blaze::Cycles Blaze::CPU::executeTSC() {
 };
 
 Blaze::Cycles Blaze::CPU::executeTSX() {
-	// TODO
+	X = SP;
+	setZeroNegFlags(X);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeTXA() {
-	// TODO
+	A = X;
+	setZeroNegFlags(A);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeTXS() {
-	// TODO
+	SP = X;
 	return 0;
 };
 
@@ -784,7 +802,8 @@ Blaze::Cycles Blaze::CPU::executeTXY() {
 };
 
 Blaze::Cycles Blaze::CPU::executeTYA() {
-	// TODO
+	A = Y;
+	setZeroNegFlags(A);
 	return 0;
 };
 
