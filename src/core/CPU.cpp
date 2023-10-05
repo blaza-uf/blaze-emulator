@@ -126,8 +126,8 @@ void Blaze::CPU::reset(MemRam &memory) {
 }
 
 void Blaze::CPU::setZeroNegFlags (Byte a_x_y) {
-	setFlag(n, ((a_x_y & Negative) > 0));
-	setFlag(z, (a_x_y == 0));
+	n = (a_x_y & Negative) > 0);
+	z = (a_x_y == 0);
 }
 
 void Blaze::CPU::execute() {
