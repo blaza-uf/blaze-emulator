@@ -126,8 +126,8 @@ void Blaze::CPU::reset(MemRam &memory) {
 }
 
 void Blaze::CPU::setZeroNegFlags (Byte a_x_y) {
-	n = (a_x_y & Negative) > 0);
-	z = (a_x_y == 0);
+	setFlag(n, ((a_x_y & Negative) > 0));
+	setFlag(z, (a_x_y == 0));
 }
 
 void Blaze::CPU::execute() {
@@ -729,11 +729,6 @@ Blaze::Cycles Blaze::CPU::executeSED() {
 
 Blaze::Cycles Blaze::CPU::executeSEI() {
 	setFlag(i, true);
-	return 0;
-};
-
-Blaze::Cycles Blaze::CPU::executeSEV() {
-	setFlag(v, true);
 	return 0;
 };
 
