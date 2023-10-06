@@ -121,9 +121,13 @@ void Blaze::CPU::reset(MemRam &memory) {
 }
 
 void Blaze::CPU::setZeroNegFlags(Word a_x_y) {
-	// TODO: we need to change the bit we check for here
-	//       when we're using 8-bit mode instead of 16-bit mode
-	setFlag(n, ((a_x_y & (1u << 15)) != 0));
+	//  we need to change the bit we check for here
+	//  when we're using 8-bit mode instead of 16-bit mode
+	if (((a_x_y == X || a_x_y == Y) && getFlag(x)) || (a_x_y == A && getFlag(m))) {
+        	setFlag(n, ((a_x_y & (1u << 7)) != 0));
+    	} else {
+        	setFlag(n, ((a_x_y & (1u << 15)) != 0));
+    	}
 	setFlag(z, (a_x_y == 0));
 }
 
