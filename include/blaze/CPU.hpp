@@ -202,10 +202,146 @@ namespace Blaze {
 		// Group 3 instructions with this address mode are actually branch instructions with a condition
 		static constexpr Byte GROUP3_CONDITION_ADDRESS_MODE = 4;
 
-		static const std::unordered_map<Byte, Cycles(CPU::*)()> SINGLE_BYTE_INSTRUCTIONS;
-		static const std::unordered_map<Byte, std::pair<Cycles(CPU::*)(AddressingMode), Blaze::CPU::AddressingMode>> SINGLE_BYTE_INSTRUCTIONS_WITH_MODE;
-		static const std::unordered_map<Byte, std::pair<Byte, Cycles(CPU::*)()>> SPECIAL_MULTI_BYTE_INSTRUCTIONS;
-		static const std::unordered_map<Byte, std::tuple<Byte, Cycles(CPU::*)(AddressingMode), Blaze::CPU::AddressingMode>> SPECIAL_MULTI_BYTE_INSTRUCTIONS_WITH_MODE;
+		enum class Opcode: Byte {
+			BRK,
+			BRL,
+			CLC,
+			CLD,
+			CLI,
+			CLV,
+			COP,
+			DEX,
+			DEY,
+			INX,
+			INY,
+			JML,
+			JSL,
+			MVN,
+			MVP,
+			NOP,
+			PEA,
+			PEI,
+			PER,
+			PHA,
+			PHB,
+			PHD,
+			PHK,
+			PHP,
+			PHX,
+			PHY,
+			PLA,
+			PLB,
+			PLD,
+			PLP,
+			PLX,
+			PLY,
+			REP,
+			RTI,
+			RTL,
+			RTS,
+			SEC,
+			SED,
+			SEI,
+			SEP,
+			STP,
+			TAX,
+			TAY,
+			TCD,
+			TCS,
+			TDC,
+			TSC,
+			TSX,
+			TXA,
+			TXS,
+			TXY,
+			TYA,
+			TYX,
+			WAI,
+			WDM,
+			XBA,
+			XCE,
+
+			ADC,
+			AND,
+			ASL,
+			BIT,
+			CMP,
+			CPX,
+			CPY,
+			DEC,
+			EOR,
+			INC,
+			JMP,
+			JSR,
+			LDA,
+			LDX,
+			LDY,
+			LSR,
+			ORA,
+			ROL,
+			ROR,
+			SBC,
+			STA,
+			STX,
+			STY,
+			STZ,
+			TRB,
+			TSB,
+
+			BRA,
+
+			INVALID = std::numeric_limits<Byte>::max(),
+		};
+
+		struct Instruction {
+			Opcode opcode = Opcode::INVALID;
+			Byte size = 0;
+
+			// Only valid for some opcodes
+			AddressingMode addressingMode = AddressingMode::INVALID;
+
+			// Only for `BRA`
+			ConditionCode condition = ConditionCode::NONE;
+
+			// Only for `BRA`
+			bool passConditionIfBitSet = false;
+
+			// For some instructions, this is not known ahead of time (before execution).
+			// For such instructions, leave this as 0.
+			Cycles cycles = 0;
+
+			// This default constructor produces an invalid instruction (i.e. one for which the `valid` method returns `false`).
+			constexpr Instruction() = default;
+
+			constexpr Instruction(Opcode opcode, Byte size, Cycles cycles, AddressingMode addressingMode = AddressingMode::INVALID):
+				opcode(opcode),
+				size(size),
+				addressingMode(addressingMode),
+				cycles(cycles)
+				{};
+
+			constexpr Instruction(Opcode opcode, Byte size, Cycles cycles, ConditionCode condition, bool passConditionIfBitSet):
+				opcode(opcode),
+				size(size),
+				condition(condition),
+				passConditionIfBitSet(passConditionIfBitSet),
+				cycles(cycles)
+				{};
+
+			inline bool valid() const {
+				return opcode != Opcode::INVALID && size > 0;
+			};
+
+			inline bool hasFixedCycleCount() const {
+				return cycles > 0;
+			};
+
+			inline operator bool() const {
+				return valid();
+			};
+		};
+
+		static const std::unordered_map<Byte, Instruction> INSTRUCTIONS_WITH_NO_PATTERN;
 
 		enum flags: Byte {
 			// Process Status Flags
@@ -243,8 +379,11 @@ namespace Blaze {
 		// of the operand with the given addressing mode.
 		Address decodeAddress(AddressingMode addressingMode) const;
 
-		// executes the current instruction, stores the size of the instruction in `outInstructionSize`, and returns the number of cycles the instruction took
-		Cycles executeInstruction(Byte& outInstructionSize);
+		// decodes the current instruction based on the given opcode, returning the decoded instruction information
+		Instruction decodeInstruction(Byte opcode);
+
+		// executes the current (pre-decoded) instruction with the given information
+		Cycles executeInstruction(const Instruction& info);
 
 		Cycles invalidInstruction();
 
@@ -338,12 +477,14 @@ namespace Blaze {
 		Cycles executeBRA(ConditionCode condition, bool passConditionIfBitSet);
 
 		void reset(MemRam &memory);      		// Reset CPU internal state
-		void execute(ClockTicks cTicks); 		// Execute the current instruction
+		void execute(); 		// Execute the current instruction
 		void clock();                    		// CPU driver
 		Byte read(Address addr);				// Read from the Bus
 		void write(Address addr, Byte data);	// Write to the Bus
 
 		bool getFlag(flags f);
 		void setFlag(flags f, bool s);
+
+		void setZeroNegFlags(Word a_x_y);
 	};
 } // namespace Blaze

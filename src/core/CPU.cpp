@@ -1,85 +1,80 @@
 #include <blaze/CPU.hpp>
 #include "blaze/Bus.hpp"
 
-const std::unordered_map<Blaze::Byte, Blaze::Cycles(Blaze::CPU::*)()> Blaze::CPU::SINGLE_BYTE_INSTRUCTIONS {
-	{ 0x40, &CPU::executeRTI },
-	{ 0x60, &CPU::executeRTS },
-	{ 0x08, &CPU::executePHP },
-	{ 0x28, &CPU::executePLP },
-	{ 0x48, &CPU::executePHA },
-	{ 0x68, &CPU::executePLA },
-	{ 0x88, &CPU::executeDEY },
-	{ 0xa8, &CPU::executeTAY },
-	{ 0xc8, &CPU::executeINY },
-	{ 0xe8, &CPU::executeINX },
-	{ 0x18, &CPU::executeCLC },
-	{ 0x38, &CPU::executeSEC },
-	{ 0x58, &CPU::executeCLI },
-	{ 0x78, &CPU::executeSEI },
-	{ 0x98, &CPU::executeTYA },
-	{ 0xb8, &CPU::executeCLV },
-	{ 0xd8, &CPU::executeCLD },
-	{ 0xf8, &CPU::executeSED },
-	{ 0x8a, &CPU::executeTXA },
-	{ 0x9a, &CPU::executeTXS },
-	{ 0xaa, &CPU::executeTAX },
-	{ 0xba, &CPU::executeTSX },
-	{ 0xca, &CPU::executeDEX },
-	{ 0xea, &CPU::executeNOP },
-	{ 0x5a, &CPU::executePHY },
-	{ 0x7a, &CPU::executePLY },
-	{ 0xda, &CPU::executePHX },
-	{ 0xfa, &CPU::executePLX },
-	{ 0x0b, &CPU::executePHD },
-	{ 0x2b, &CPU::executePLD },
-	{ 0x4b, &CPU::executePHK },
-	{ 0x6b, &CPU::executeRTL },
-	{ 0x8b, &CPU::executePHB },
-	{ 0xab, &CPU::executePLB },
-	{ 0xcb, &CPU::executeWAI },
-	{ 0xeb, &CPU::executeXBA },
-	{ 0x1b, &CPU::executeTCS },
-	{ 0x3b, &CPU::executeTSC },
-	{ 0x5b, &CPU::executeTCD },
-	{ 0x7b, &CPU::executeTDC },
-	{ 0x9b, &CPU::executeTXY },
-	{ 0xbb, &CPU::executeTYX },
-	{ 0xdb, &CPU::executeSTP },
-	{ 0xfb, &CPU::executeXCE },
-	{ 0x42, &CPU::executeWDM },
-};
+// TODO: fill in cycle info
+const std::unordered_map<Blaze::Byte, Blaze::CPU::Instruction> Blaze::CPU::INSTRUCTIONS_WITH_NO_PATTERN {
+	{ 0x40, Instruction(Opcode::RTI, 1, 0) },
+	{ 0x60, Instruction(Opcode::RTS, 1, 0) },
+	{ 0x08, Instruction(Opcode::PHP, 1, 0) },
+	{ 0x28, Instruction(Opcode::PLP, 1, 0) },
+	{ 0x48, Instruction(Opcode::PHA, 1, 0) },
+	{ 0x68, Instruction(Opcode::PLA, 1, 0) },
+	{ 0x88, Instruction(Opcode::DEY, 1, 0) },
+	{ 0xa8, Instruction(Opcode::TAY, 1, 0) },
+	{ 0xc8, Instruction(Opcode::INY, 1, 0) },
+	{ 0xe8, Instruction(Opcode::INX, 1, 0) },
+	{ 0x18, Instruction(Opcode::CLC, 1, 0) },
+	{ 0x38, Instruction(Opcode::SEC, 1, 0) },
+	{ 0x58, Instruction(Opcode::CLI, 1, 0) },
+	{ 0x78, Instruction(Opcode::SEI, 1, 0) },
+	{ 0x98, Instruction(Opcode::TYA, 1, 0) },
+	{ 0xb8, Instruction(Opcode::CLV, 1, 0) },
+	{ 0xd8, Instruction(Opcode::CLD, 1, 0) },
+	{ 0xf8, Instruction(Opcode::SED, 1, 0) },
+	{ 0x8a, Instruction(Opcode::TXA, 1, 0) },
+	{ 0x9a, Instruction(Opcode::TXS, 1, 0) },
+	{ 0xaa, Instruction(Opcode::TAX, 1, 0) },
+	{ 0xba, Instruction(Opcode::TSX, 1, 0) },
+	{ 0xca, Instruction(Opcode::DEX, 1, 0) },
+	{ 0xea, Instruction(Opcode::NOP, 1, 0) },
+	{ 0x5a, Instruction(Opcode::PHY, 1, 0) },
+	{ 0x7a, Instruction(Opcode::PLY, 1, 0) },
+	{ 0xda, Instruction(Opcode::PHX, 1, 0) },
+	{ 0xfa, Instruction(Opcode::PLX, 1, 0) },
+	{ 0x0b, Instruction(Opcode::PHD, 1, 0) },
+	{ 0x2b, Instruction(Opcode::PLD, 1, 0) },
+	{ 0x4b, Instruction(Opcode::PHK, 1, 0) },
+	{ 0x6b, Instruction(Opcode::RTL, 1, 0) },
+	{ 0x8b, Instruction(Opcode::PHB, 1, 0) },
+	{ 0xab, Instruction(Opcode::PLB, 1, 0) },
+	{ 0xcb, Instruction(Opcode::WAI, 1, 0) },
+	{ 0xeb, Instruction(Opcode::XBA, 1, 0) },
+	{ 0x1b, Instruction(Opcode::TCS, 1, 0) },
+	{ 0x3b, Instruction(Opcode::TSC, 1, 0) },
+	{ 0x5b, Instruction(Opcode::TCD, 1, 0) },
+	{ 0x7b, Instruction(Opcode::TDC, 1, 0) },
+	{ 0x9b, Instruction(Opcode::TXY, 1, 0) },
+	{ 0xbb, Instruction(Opcode::TYX, 1, 0) },
+	{ 0xdb, Instruction(Opcode::STP, 1, 0) },
+	{ 0xfb, Instruction(Opcode::XCE, 1, 0) },
+	{ 0x42, Instruction(Opcode::WDM, 2, 0) },
 
-const std::unordered_map<Blaze::Byte, std::pair<Blaze::Cycles(Blaze::CPU::*)(Blaze::CPU::AddressingMode), Blaze::CPU::AddressingMode>> Blaze::CPU::SINGLE_BYTE_INSTRUCTIONS_WITH_MODE {
-	{ 0x1a, { &CPU::executeINC, AddressingMode::Accumulator } },
-	{ 0x3a, { &CPU::executeDEC, AddressingMode::Accumulator } },
-};
+	{ 0x1a, Instruction(Opcode::INC, 1, 0, AddressingMode::Accumulator) },
+	{ 0x3a, Instruction(Opcode::DEC, 1, 0, AddressingMode::Accumulator) },
 
-const std::unordered_map<Blaze::Byte, std::pair<Blaze::Byte, Blaze::Cycles(Blaze::CPU::*)()>> Blaze::CPU::SPECIAL_MULTI_BYTE_INSTRUCTIONS {
-	{ 0x00, { 2, &CPU::executeBRK } }, // requires 2 bytes, but the 2nd byte is unused
-	{ 0x02, { 2, &CPU::executeCOP } },
-	{ 0x22, { 4, &CPU::executeJSL } },
-	{ 0x62, { 3, &CPU::executePER } },
-	{ 0x82, { 3, &CPU::executeBRL } },
-	{ 0xc2, { 2, &CPU::executeREP } },
-	{ 0xe2, { 2, &CPU::executeSEP } },
-	{ 0x44, { 3, &CPU::executeMVP } },
-	{ 0x54, { 3, &CPU::executeMVN } },
-	{ 0xd4, { 2, &CPU::executePEI } },
-	{ 0xf4, { 3, &CPU::executePEA } },
-	{ 0xdc, { 3, &CPU::executeJML } },
-};
+	{ 0x00, Instruction(Opcode::BRK, 2, 0) }, // requires 2 bytes, but the 2nd byte is unused
+	{ 0x02, Instruction(Opcode::COP, 2, 0) },
+	{ 0x22, Instruction(Opcode::JSL, 4, 0, AddressingMode::AbsoluteLong) },
+	{ 0x62, Instruction(Opcode::PER, 3, 0) },
+	{ 0x82, Instruction(Opcode::BRL, 3, 0) },
+	{ 0xc2, Instruction(Opcode::REP, 2, 0, AddressingMode::Immediate) },
+	{ 0xe2, Instruction(Opcode::SEP, 2, 0, AddressingMode::Immediate) },
+	{ 0x44, Instruction(Opcode::MVP, 3, 0, AddressingMode::BlockMove) },
+	{ 0x54, Instruction(Opcode::MVN, 3, 0, AddressingMode::BlockMove) },
+	{ 0xd4, Instruction(Opcode::PEI, 2, 0) },
+	{ 0xf4, Instruction(Opcode::PEA, 3, 0) },
+	{ 0xdc, Instruction(Opcode::JML, 3, 0, AddressingMode::AbsoluteIndirect) },
 
-const std::unordered_map<Blaze::Byte, std::tuple<Blaze::Byte, Blaze::Cycles(Blaze::CPU::*)(Blaze::CPU::AddressingMode), Blaze::CPU::AddressingMode>> Blaze::CPU::SPECIAL_MULTI_BYTE_INSTRUCTIONS_WITH_MODE {
-	{ 0x20, { 3, &CPU::executeJSR, AddressingMode::Absolute } },
-	{ 0x89, { 2, &CPU::executeBIT, AddressingMode::Immediate } },
-	{ 0x14, { 2, &CPU::executeTRB, AddressingMode::Direct } },
-	{ 0x1c, { 3, &CPU::executeTRB, AddressingMode::Absolute } },
-	{ 0x64, { 2, &CPU::executeSTZ, AddressingMode::Direct } },
-	{ 0x9c, { 3, &CPU::executeSTZ, AddressingMode::Absolute } },
-	{ 0x74, { 2, &CPU::executeSTZ, AddressingMode::DirectIndexedX } },
-	{ 0x9e, { 3, &CPU::executeSTZ, AddressingMode::AbsoluteIndexedX } },
-	{ 0x5c, { 4, &CPU::executeJMP, AddressingMode::AbsoluteLong } },
-	{ 0xfc, { 3, &CPU::executeJSR, AddressingMode::AbsoluteIndexedIndirect } },
+	{ 0x20, Instruction(Opcode::JSR, 3, 0, AddressingMode::Absolute) },
+	{ 0x89, Instruction(Opcode::BIT, 2, 0, AddressingMode::Immediate) },
+	{ 0x14, Instruction(Opcode::TRB, 2, 0, AddressingMode::Direct) },
+	{ 0x1c, Instruction(Opcode::TRB, 3, 0, AddressingMode::Absolute) },
+	{ 0x64, Instruction(Opcode::STZ, 2, 0, AddressingMode::Direct) },
+	{ 0x9c, Instruction(Opcode::STZ, 3, 0, AddressingMode::Absolute) },
+	{ 0x74, Instruction(Opcode::STZ, 2, 0, AddressingMode::DirectIndexedX) },
+	{ 0x9e, Instruction(Opcode::STZ, 3, 0, AddressingMode::AbsoluteIndexedX) },
+	{ 0x5c, Instruction(Opcode::JMP, 4, 0, AddressingMode::AbsoluteLong) },
+	{ 0xfc, Instruction(Opcode::JSR, 3, 0, AddressingMode::AbsoluteIndexedIndirect) },
 };
 
 // NOLINTBEGIN(readability-magic-numbers, readability-identifier-length)
@@ -125,8 +120,10 @@ void Blaze::CPU::reset(MemRam &memory) {
 	_memory->reset();
 }
 
-void Blaze::CPU::setZeroNegFlags (Byte a_x_y) {
-	setFlag(n, ((a_x_y & Negative) > 0));
+void Blaze::CPU::setZeroNegFlags(Word a_x_y) {
+	// TODO: we need to change the bit we check for here
+	//       when we're using 8-bit mode instead of 16-bit mode
+	setFlag(n, ((a_x_y & (1u << 15)) != 0));
 	setFlag(z, (a_x_y == 0));
 }
 
@@ -135,18 +132,20 @@ void Blaze::CPU::execute() {
 	// Read first 8 bytes of next instruction
 	//Byte* instruction = bus->read(PC);
 
-	// execute instruction and get # of cycles to run
-	Byte instrSize = 0;
-	auto cycles = executeInstruction(instrSize);
+	// decode instruction and get info (e.g. # of cycles to run, instruction size)
+	auto info = decodeInstruction(*currentInstruction());
 
-	// Decrement cycles since fething an instruction is always 1 cycle
-	cycles--;
-	PC += instrSize;
+	// execute instruction with the info
+	info.cycles = executeInstruction(info);
+
+	// Decrement cycles since fetching an instruction is always 1 cycle
+	info.cycles--;
+	PC += info.size;
 
 	// Count down cycles
-	while(cycles > 0) 
+	while(info.cycles > 0) 
 	{
-		--cycles;
+		--info.cycles;
 	}
 }
 
@@ -255,63 +254,27 @@ Blaze::Address Blaze::CPU::decodeAddress(AddressingMode mode) const {
 
 // special thanks to https://llx.com/Neil/a2/opcodes.html for some wisdom on how intelligently decode the instructions
 // (without having a giant switch statement)
-Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
-	const Byte* inst = currentInstruction();
-	outInstructionSize = 0;
-
+Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0) {
 	// before doing any smart decoding, we first do some simple opcode comparisons.
 	// there are some instructions that only require a single byte (their opcode).
 	// then there are those instructions that require multiple bytes, but have no
 	// clear pattern that can be used to decode them "intelligently".
 
-	// try single-byte instructions first
-	auto singleByteEntry = SINGLE_BYTE_INSTRUCTIONS.find(inst[0]);
-	if (singleByteEntry != SINGLE_BYTE_INSTRUCTIONS.end()) {
-		auto memberFunc = singleByteEntry->second;
-		outInstructionSize = 1;
-		return (this->*memberFunc)();
-	}
-
-	auto singleByteWithModeEntry = SINGLE_BYTE_INSTRUCTIONS_WITH_MODE.find(inst[0]);
-	if (singleByteWithModeEntry != SINGLE_BYTE_INSTRUCTIONS_WITH_MODE.end()) {
-		auto funcInfo = singleByteWithModeEntry->second;
-		auto memberFunc = funcInfo.first;
-		auto addrMode = funcInfo.second;
-		outInstructionSize = 1;
-		return (this->*memberFunc)(addrMode);
-	}
-
-	// now try special multi-byte instructions
-	auto multiByteEntry = SPECIAL_MULTI_BYTE_INSTRUCTIONS.find(inst[0]);
-	if (multiByteEntry != SPECIAL_MULTI_BYTE_INSTRUCTIONS.end()) {
-		auto funcInfo = multiByteEntry->second;
-		auto instrSize = funcInfo.first;
-		auto memberFunc = funcInfo.second;
-		outInstructionSize = instrSize;
-		return (this->*memberFunc)();
-	}
-
-	auto multiByteWithModeEntry = SPECIAL_MULTI_BYTE_INSTRUCTIONS_WITH_MODE.find(inst[0]);
-	if (multiByteWithModeEntry != SPECIAL_MULTI_BYTE_INSTRUCTIONS_WITH_MODE.end()) {
-		auto funcInfo = multiByteWithModeEntry->second;
-		auto instrSize = std::get<0>(funcInfo);
-		auto memberFunc = std::get<1>(funcInfo);
-		auto addrMode = std::get<2>(funcInfo);
-		outInstructionSize = instrSize;
-		return (this->*memberFunc)(addrMode);
+	auto entry = INSTRUCTIONS_WITH_NO_PATTERN.find(inst0);
+	if (entry != INSTRUCTIONS_WITH_NO_PATTERN.end()) {
+		return entry->second;
 	}
 
 	// this is a super special case
-	if (inst[0] == 0x80) {
-		outInstructionSize = 2;
-		return executeBRA(ConditionCode::NONE, false);
+	if (inst0 == 0x80) {
+		return Instruction(Opcode::BRA, 2, 0, ConditionCode::NONE, false);
 	}
 
 	// for the rest of the opcodes, we decode them according to patterns
 
-	auto groupSelect = opcodeGetGroupSelect(inst[0]);
-	auto namespacedAddrMode = opcodeGetAddressingMode(inst[0]);
-	auto namespacedOpcode = opcodeGetSubopcode(inst[0]);
+	auto groupSelect = opcodeGetGroupSelect(inst0);
+	auto namespacedAddrMode = opcodeGetAddressingMode(inst0);
+	auto namespacedOpcode = opcodeGetSubopcode(inst0);
 
 	// NOTE: the namespaced address mode needs to be verified for the particular group,
 	//       since not all possible values (0 through and including 7) are valid in
@@ -332,7 +295,7 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 			// in this group, all addressing mode values are valid, so no need to check that.
 
 			if (mode == AddressingMode::Immediate && opcode == Group1Opcode::STA) {
-				return invalidInstruction();
+				return Instruction();
 			}
 
 			if (instructionSize == 0) {
@@ -345,17 +308,15 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 				instructionSize = !getFlag(flags::m) ? 3 : 2;
 			}
 
-			outInstructionSize = instructionSize;
-
 			switch (opcode) {
-				case Group1Opcode::ORA: return executeORA(mode);
-				case Group1Opcode::AND: return executeAND(mode);
-				case Group1Opcode::EOR: return executeEOR(mode);
-				case Group1Opcode::ADC: return executeADC(mode);
-				case Group1Opcode::STA: return executeSTA(mode);
-				case Group1Opcode::LDA: return executeLDA(mode);
-				case Group1Opcode::CMP: return executeCMP(mode);
-				case Group1Opcode::SBC: return executeSBC(mode);
+				case Group1Opcode::ORA: return Instruction(Opcode::ORA, instructionSize, 0, mode);
+				case Group1Opcode::AND: return Instruction(Opcode::AND, instructionSize, 0, mode);
+				case Group1Opcode::EOR: return Instruction(Opcode::EOR, instructionSize, 0, mode);
+				case Group1Opcode::ADC: return Instruction(Opcode::ADC, instructionSize, 0, mode);
+				case Group1Opcode::STA: return Instruction(Opcode::STA, instructionSize, 0, mode);
+				case Group1Opcode::LDA: return Instruction(Opcode::LDA, instructionSize, 0, mode);
+				case Group1Opcode::CMP: return Instruction(Opcode::CMP, instructionSize, 0, mode);
+				case Group1Opcode::SBC: return Instruction(Opcode::SBC, instructionSize, 0, mode);
 			}
 		} break;
 
@@ -364,17 +325,15 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 
 			// if the address mode matches the special 65C02 address mode, we process it as a Group 1 instruction instead.
 			if (namespacedAddrMode == GROUP2_65C02_ADDRESS_MODE) {
-				outInstructionSize = 2;
-
 				switch (static_cast<Group1Opcode>(namespacedOpcode)) {
-					case Group1Opcode::ORA: return executeORA(AddressingMode::DirectIndirect);
-					case Group1Opcode::AND: return executeAND(AddressingMode::DirectIndirect);
-					case Group1Opcode::EOR: return executeEOR(AddressingMode::DirectIndirect);
-					case Group1Opcode::ADC: return executeADC(AddressingMode::DirectIndirect);
-					case Group1Opcode::STA: return executeSTA(AddressingMode::DirectIndirect);
-					case Group1Opcode::LDA: return executeLDA(AddressingMode::DirectIndirect);
-					case Group1Opcode::CMP: return executeCMP(AddressingMode::DirectIndirect);
-					case Group1Opcode::SBC: return executeSBC(AddressingMode::DirectIndirect);
+					case Group1Opcode::ORA: return Instruction(Opcode::ORA, 2, 0, AddressingMode::DirectIndirect);
+					case Group1Opcode::AND: return Instruction(Opcode::AND, 2, 0, AddressingMode::DirectIndirect);
+					case Group1Opcode::EOR: return Instruction(Opcode::EOR, 2, 0, AddressingMode::DirectIndirect);
+					case Group1Opcode::ADC: return Instruction(Opcode::ADC, 2, 0, AddressingMode::DirectIndirect);
+					case Group1Opcode::STA: return Instruction(Opcode::STA, 2, 0, AddressingMode::DirectIndirect);
+					case Group1Opcode::LDA: return Instruction(Opcode::LDA, 2, 0, AddressingMode::DirectIndirect);
+					case Group1Opcode::CMP: return Instruction(Opcode::CMP, 2, 0, AddressingMode::DirectIndirect);
+					case Group1Opcode::SBC: return Instruction(Opcode::SBC, 2, 0, AddressingMode::DirectIndirect);
 				}
 			}
 
@@ -383,7 +342,7 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 			auto opcode = static_cast<Group2Opcode>(namespacedOpcode);
 
 			if (mode == AddressingMode::INVALID) {
-				return invalidInstruction();
+				return Instruction();
 			}
 
 			// in this group, not all instructions support all valid modes
@@ -394,7 +353,7 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 				// STX doesn't support Absolute Indexed X addressing
 				(mode == AddressingMode::AbsoluteIndexedX && opcode == Group2Opcode::STX)
 			) {
-				return invalidInstruction();
+				return Instruction();
 			}
 
 			if (mode == AddressingMode::Accumulator) {
@@ -404,7 +363,7 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 					case Group2Opcode::LDX:
 					case Group2Opcode::DEC:
 					case Group2Opcode::INC:
-						return invalidInstruction();
+						return Instruction();
 
 					default:
 						break;
@@ -416,17 +375,15 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 				instructionSize = !getFlag(flags::m) ? 3 : 2;
 			}
 
-			outInstructionSize = instructionSize;
-
 			switch (opcode) {
-				case Group2Opcode::ASL: return executeASL(mode);
-				case Group2Opcode::ROL: return executeROL(mode);
-				case Group2Opcode::LSR: return executeLSR(mode);
-				case Group2Opcode::ROR: return executeROR(mode);
-				case Group2Opcode::STX: return executeSTX(mode);
-				case Group2Opcode::LDX: return executeLDX(mode);
-				case Group2Opcode::DEC: return executeDEC(mode);
-				case Group2Opcode::INC: return executeINC(mode);
+				case Group2Opcode::ASL: return Instruction(Opcode::ASL, instructionSize, 0, mode);
+				case Group2Opcode::ROL: return Instruction(Opcode::ROL, instructionSize, 0, mode);
+				case Group2Opcode::LSR: return Instruction(Opcode::LSR, instructionSize, 0, mode);
+				case Group2Opcode::ROR: return Instruction(Opcode::ROR, instructionSize, 0, mode);
+				case Group2Opcode::STX: return Instruction(Opcode::STX, instructionSize, 0, mode);
+				case Group2Opcode::LDX: return Instruction(Opcode::LDX, instructionSize, 0, mode);
+				case Group2Opcode::DEC: return Instruction(Opcode::DEC, instructionSize, 0, mode);
+				case Group2Opcode::INC: return Instruction(Opcode::INC, instructionSize, 0, mode);
 			}
 		} break;
 
@@ -435,8 +392,7 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 
 			// if the address mode matches the special condition address mode, we process it as a branch instruction with a condition.
 			if (namespacedAddrMode == GROUP3_CONDITION_ADDRESS_MODE) {
-				outInstructionSize = 1;
-				return executeBRA(static_cast<ConditionCode>(namespacedOpcode >> 1), (namespacedOpcode & 0x01) != 0);
+				return Instruction(Opcode::BRA, 2, 0, static_cast<ConditionCode>(namespacedOpcode >> 1), (namespacedOpcode & 0x01) != 0);
 			}
 
 			AddressingMode mode = GROUP3_ADDRESS_MODE_MAP[namespacedAddrMode];
@@ -444,7 +400,7 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 			auto opcode = static_cast<Group3Opcode>(namespacedOpcode);
 
 			if (mode == AddressingMode::INVALID) {
-				return invalidInstruction();
+				return Instruction();
 			}
 
 			// in this group, not all instructions support all valid modes
@@ -459,7 +415,7 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 				// only LDY, CPY, and CPX support Immediate addressing
 				(mode == AddressingMode::Immediate && opcode != Group3Opcode::LDY && opcode != Group3Opcode::CPY && opcode != Group3Opcode::CPX)
 			) {
-				return invalidInstruction();
+				return Instruction();
 			}
 
 			if (instructionSize == 0) {
@@ -467,25 +423,23 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 				instructionSize = !getFlag(flags::m) ? 3 : 2;
 			}
 
-			outInstructionSize = instructionSize;
-
 			switch (opcode) {
-				case Group3Opcode::TSB:         return executeTSB(mode);
-				case Group3Opcode::BIT:         return executeBIT(mode);
-				case Group3Opcode::JMP:         return executeJMP(mode);
-				case Group3Opcode::STY:         return executeSTY(mode);
-				case Group3Opcode::LDY:         return executeLDY(mode);
-				case Group3Opcode::CPY:         return executeCPY(mode);
-				case Group3Opcode::CPX:         return executeCPX(mode);
+				case Group3Opcode::TSB:         return Instruction(Opcode::TSB, instructionSize, 0, mode);
+				case Group3Opcode::BIT:         return Instruction(Opcode::BIT, instructionSize, 0, mode);
+				case Group3Opcode::JMP:         return Instruction(Opcode::JMP, instructionSize, 0, mode);
+				case Group3Opcode::STY:         return Instruction(Opcode::STY, instructionSize, 0, mode);
+				case Group3Opcode::LDY:         return Instruction(Opcode::LDY, instructionSize, 0, mode);
+				case Group3Opcode::CPY:         return Instruction(Opcode::CPY, instructionSize, 0, mode);
+				case Group3Opcode::CPX:         return Instruction(Opcode::CPX, instructionSize, 0, mode);
 				case Group3Opcode::JMPIndirect:
 					// this is a special case, because we have to take the given
 					// addressing mode and use the indirect version of it
 					switch (mode) {
-						case AddressingMode::Absolute:         return executeJMP(AddressingMode::AbsoluteIndirect);
-						case AddressingMode::AbsoluteIndexedX: return executeJMP(AddressingMode::AbsoluteIndexedIndirect);
+						case AddressingMode::Absolute:         return Instruction(Opcode::JMP, instructionSize, 0, AddressingMode::AbsoluteIndirect);
+						case AddressingMode::AbsoluteIndexedX: return Instruction(Opcode::JMP, instructionSize, 0, AddressingMode::AbsoluteIndexedIndirect);
 
 						default:
-							return invalidInstruction();
+							return Instruction();
 					}
 					break;
 			}
@@ -504,19 +458,111 @@ Blaze::Cycles Blaze::CPU::executeInstruction(Byte& outInstructionSize) {
 				instructionSize = !getFlag(flags::m) ? 3 : 2;
 			}
 
-			outInstructionSize = instructionSize;
-
 			switch (opcode) {
-				case Group1Opcode::ORA: return executeORA(mode);
-				case Group1Opcode::AND: return executeAND(mode);
-				case Group1Opcode::EOR: return executeEOR(mode);
-				case Group1Opcode::ADC: return executeADC(mode);
-				case Group1Opcode::STA: return executeSTA(mode);
-				case Group1Opcode::LDA: return executeLDA(mode);
-				case Group1Opcode::CMP: return executeCMP(mode);
-				case Group1Opcode::SBC: return executeSBC(mode);
+				case Group1Opcode::ORA: return Instruction(Opcode::ORA, instructionSize, 0, mode);
+				case Group1Opcode::AND: return Instruction(Opcode::AND, instructionSize, 0, mode);
+				case Group1Opcode::EOR: return Instruction(Opcode::EOR, instructionSize, 0, mode);
+				case Group1Opcode::ADC: return Instruction(Opcode::ADC, instructionSize, 0, mode);
+				case Group1Opcode::STA: return Instruction(Opcode::STA, instructionSize, 0, mode);
+				case Group1Opcode::LDA: return Instruction(Opcode::LDA, instructionSize, 0, mode);
+				case Group1Opcode::CMP: return Instruction(Opcode::CMP, instructionSize, 0, mode);
+				case Group1Opcode::SBC: return Instruction(Opcode::SBC, instructionSize, 0, mode);
 			}
 		} break;
+
+		default:
+			return Instruction();
+	}
+};
+
+Blaze::Cycles Blaze::CPU::executeInstruction(const Instruction& info) {
+	switch (info.opcode) {
+		case Opcode::BRK: return executeBRK();
+		case Opcode::BRL: return executeBRL();
+		case Opcode::CLC: return executeCLC();
+		case Opcode::CLD: return executeCLD();
+		case Opcode::CLI: return executeCLI();
+		case Opcode::CLV: return executeCLV();
+		case Opcode::COP: return executeCOP();
+		case Opcode::DEX: return executeDEX();
+		case Opcode::DEY: return executeDEY();
+		case Opcode::INX: return executeINX();
+		case Opcode::INY: return executeINY();
+		case Opcode::JML: return executeJML();
+		case Opcode::JSL: return executeJSL();
+		case Opcode::MVN: return executeMVN();
+		case Opcode::MVP: return executeMVP();
+		case Opcode::NOP: return executeNOP();
+		case Opcode::PEA: return executePEA();
+		case Opcode::PEI: return executePEI();
+		case Opcode::PER: return executePER();
+		case Opcode::PHA: return executePHA();
+		case Opcode::PHB: return executePHB();
+		case Opcode::PHD: return executePHD();
+		case Opcode::PHK: return executePHK();
+		case Opcode::PHP: return executePHP();
+		case Opcode::PHX: return executePHX();
+		case Opcode::PHY: return executePHY();
+		case Opcode::PLA: return executePLA();
+		case Opcode::PLB: return executePLB();
+		case Opcode::PLD: return executePLD();
+		case Opcode::PLP: return executePLP();
+		case Opcode::PLX: return executePLX();
+		case Opcode::PLY: return executePLY();
+		case Opcode::REP: return executeREP();
+		case Opcode::RTI: return executeRTI();
+		case Opcode::RTL: return executeRTL();
+		case Opcode::RTS: return executeRTS();
+		case Opcode::SEC: return executeSEC();
+		case Opcode::SED: return executeSED();
+		case Opcode::SEI: return executeSEI();
+		case Opcode::SEP: return executeSEP();
+		case Opcode::STP: return executeSTP();
+		case Opcode::TAX: return executeTAX();
+		case Opcode::TAY: return executeTAY();
+		case Opcode::TCD: return executeTCD();
+		case Opcode::TCS: return executeTCS();
+		case Opcode::TDC: return executeTDC();
+		case Opcode::TSC: return executeTSC();
+		case Opcode::TSX: return executeTSX();
+		case Opcode::TXA: return executeTXA();
+		case Opcode::TXS: return executeTXS();
+		case Opcode::TXY: return executeTXY();
+		case Opcode::TYA: return executeTYA();
+		case Opcode::TYX: return executeTYX();
+		case Opcode::WAI: return executeWAI();
+		case Opcode::WDM: return executeWDM();
+		case Opcode::XBA: return executeXBA();
+		case Opcode::XCE: return executeXCE();
+
+		case Opcode::ADC: return executeADC(info.addressingMode);
+		case Opcode::AND: return executeAND(info.addressingMode);
+		case Opcode::ASL: return executeASL(info.addressingMode);
+		case Opcode::BIT: return executeBIT(info.addressingMode);
+		case Opcode::CMP: return executeCMP(info.addressingMode);
+		case Opcode::CPX: return executeCPX(info.addressingMode);
+		case Opcode::CPY: return executeCPY(info.addressingMode);
+		case Opcode::DEC: return executeDEC(info.addressingMode);
+		case Opcode::EOR: return executeEOR(info.addressingMode);
+		case Opcode::INC: return executeINC(info.addressingMode);
+		case Opcode::JMP: return executeJMP(info.addressingMode);
+		case Opcode::JSR: return executeJSR(info.addressingMode);
+		case Opcode::LDA: return executeLDA(info.addressingMode);
+		case Opcode::LDX: return executeLDX(info.addressingMode);
+		case Opcode::LDY: return executeLDY(info.addressingMode);
+		case Opcode::LSR: return executeLSR(info.addressingMode);
+		case Opcode::ORA: return executeORA(info.addressingMode);
+		case Opcode::ROL: return executeROL(info.addressingMode);
+		case Opcode::ROR: return executeROR(info.addressingMode);
+		case Opcode::SBC: return executeSBC(info.addressingMode);
+		case Opcode::STA: return executeSTA(info.addressingMode);
+		case Opcode::STX: return executeSTX(info.addressingMode);
+		case Opcode::STY: return executeSTY(info.addressingMode);
+		case Opcode::STZ: return executeSTZ(info.addressingMode);
+		case Opcode::TRB: return executeTRB(info.addressingMode);
+		case Opcode::TSB: return executeTSB(info.addressingMode);
+
+		case Opcode::BRA: return executeBRA(info.condition, info.passConditionIfBitSet);
 
 		default:
 			return invalidInstruction();
