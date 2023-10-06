@@ -45,6 +45,7 @@ target_link_libraries(blaze PRIVATE SDL2::SDL2-static)
 
 add_executable(blaze-core-tests
 	test/color.cpp
+	test/cpu.cpp
 )
 
 target_link_libraries(blaze-core-tests PRIVATE blaze-core Catch2::Catch2WithMain)
