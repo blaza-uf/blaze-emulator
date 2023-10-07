@@ -414,8 +414,8 @@ Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0) {
 				(mode == AddressingMode::Direct && (opcode == Group3Opcode::JMP || opcode == Group3Opcode::JMPIndirect)) ||
 				// only STY, LDY, and BIT support Direct Indexed X addressing
 				(mode == AddressingMode::DirectIndexedX && opcode != Group3Opcode::STY && opcode != Group3Opcode::LDY && opcode != Group3Opcode::BIT) ||
-				// only LDY and BIT support Absolute Indexed X addressing
-				(mode == AddressingMode::AbsoluteIndexedX && opcode != Group3Opcode::LDY && opcode != Group3Opcode::BIT) ||
+				// only LDY, BIT, and JMPIndirect support Absolute Indexed X addressing
+				(mode == AddressingMode::AbsoluteIndexedX && opcode != Group3Opcode::LDY && opcode != Group3Opcode::BIT && opcode != Group3Opcode::JMPIndirect) ||
 				// only LDY, CPY, and CPX support Immediate addressing
 				(mode == AddressingMode::Immediate && opcode != Group3Opcode::LDY && opcode != Group3Opcode::CPY && opcode != Group3Opcode::CPX)
 			) {

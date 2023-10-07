@@ -157,8 +157,8 @@ namespace Blaze {
 			AddressingMode::Accumulator,
 			AddressingMode::Absolute,
 			AddressingMode::INVALID,
-			AddressingMode::INVALID,
 			AddressingMode::DirectIndexedX,
+			AddressingMode::INVALID,
 			AddressingMode::AbsoluteIndexedX,
 		};
 
@@ -185,8 +185,8 @@ namespace Blaze {
 			AddressingMode::INVALID,
 			AddressingMode::Absolute,
 			AddressingMode::INVALID,
-			AddressingMode::INVALID,
 			AddressingMode::DirectIndexedX,
+			AddressingMode::INVALID,
 			AddressingMode::AbsoluteIndexedX,
 		};
 
