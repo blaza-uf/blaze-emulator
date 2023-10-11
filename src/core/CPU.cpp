@@ -120,14 +120,14 @@ void Blaze::CPU::reset(MemRam &memory) {
 	_memory->reset();
 }
 
-void Blaze::CPU::setZeroNegFlags(Word a_x_y) {
+void Blaze::CPU::setZeroNegFlags(Word a_x_y, bool isAccumulator) {
 	//  we need to change the bit we check for here
 	//  when we're using 8-bit mode instead of 16-bit mode
-	if (((a_x_y == X || a_x_y == Y) && getFlag(x)) || (a_x_y == A && getFlag(m))) {
-        	setFlag(n, ((a_x_y & (1u << 7)) != 0));
-    	} else {
-        	setFlag(n, ((a_x_y & (1u << 15)) != 0));
-    	}
+	if ((!isAccumulator && indexRegistersAre8Bit()) || (isAccumulator && memoryAndAccumulatorAre8Bit())) {
+		setFlag(n, ((a_x_y & (1u << 7)) != 0));
+	} else {
+		setFlag(n, ((a_x_y & (1u << 15)) != 0));
+	}
 	setFlag(z, (a_x_y == 0));
 }
 
@@ -620,25 +620,25 @@ Blaze::Cycles Blaze::CPU::executeCOP() {
 
 Blaze::Cycles Blaze::CPU::executeDEX() {
 	X--;
-	setZeroNegFlags(X);
+	setZeroNegFlags(X, false);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeDEY() {
 	Y--;
-	setZeroNegFlags(Y);
+	setZeroNegFlags(Y, false);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeINX() {
 	X++;
-	setZeroNegFlags(X);
+	setZeroNegFlags(X, false);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeINY() {
 	Y++;
-	setZeroNegFlags(Y);
+	setZeroNegFlags(Y, false);
 	return 0;
 };
 
@@ -794,13 +794,13 @@ Blaze::Cycles Blaze::CPU::executeSTP() {
 
 Blaze::Cycles Blaze::CPU::executeTAX() {
 	X = A;
-	setZeroNegFlags(X);
+	setZeroNegFlags(X, false);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeTAY() {
 	Y = A;
-	setZeroNegFlags(Y);
+	setZeroNegFlags(Y, false);
 	return 0;
 };
 
@@ -826,13 +826,13 @@ Blaze::Cycles Blaze::CPU::executeTSC() {
 
 Blaze::Cycles Blaze::CPU::executeTSX() {
 	X = SP;
-	setZeroNegFlags(X);
+	setZeroNegFlags(X, false);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeTXA() {
 	A = X;
-	setZeroNegFlags(A);
+	setZeroNegFlags(A, true);
 	return 0;
 };
 
@@ -848,7 +848,7 @@ Blaze::Cycles Blaze::CPU::executeTXY() {
 
 Blaze::Cycles Blaze::CPU::executeTYA() {
 	A = Y;
-	setZeroNegFlags(A);
+	setZeroNegFlags(A, true);
 	return 0;
 };
 

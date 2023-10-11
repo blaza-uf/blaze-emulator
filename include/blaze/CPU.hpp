@@ -485,6 +485,6 @@ namespace Blaze {
 		bool getFlag(flags f);
 		void setFlag(flags f, bool s);
 
-		void setZeroNegFlags(Word a_x_y);
+		void setZeroNegFlags(Word a_x_y, bool isAccumulator);
 	};
 } // namespace Blaze
