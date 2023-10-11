@@ -1,5 +1,6 @@
 #include <blaze/CPU.hpp>
 #include "blaze/Bus.hpp"
+#include <cassert>
 
 // TODO: fill in cycle info
 const std::unordered_map<Blaze::Byte, Blaze::CPU::Instruction> Blaze::CPU::INSTRUCTIONS_WITH_NO_PATTERN {
@@ -131,6 +132,16 @@ void Blaze::CPU::setZeroNegFlags(Word a_x_y, bool isAccumulator) {
 	setFlag(z, (a_x_y == 0));
 }
 
+void Blaze::CPU::setOverflowFlag(Word leftOperand, Word rightOperand, Word result) {
+	Word signMask = memoryAndAccumulatorAre8Bit() ? (1u << 7) : (1u << 15);
+	bool leftSign = (leftOperand & signMask) != 0;
+	bool rightSign = (rightOperand & signMask) != 0;
+	bool resultSign = (result & signMask) != 0;
+	// if the signs of the inputs are equal to each other but not the sign of the result,
+	// then signed overflow/underflow occurred.
+	setFlag(flags::v, (leftSign == rightSign) && (leftSign != resultSign));
+};
+
 void Blaze::CPU::execute() {
 
 	// Read first 8 bytes of next instruction
@@ -174,23 +185,59 @@ void Blaze::CPU::setFlag(CPU::flags flag, bool s) {
 		P &= ~flag; // clear flag
 }
 
-bool Blaze::CPU::getFlag(flags f) {
+bool Blaze::CPU::getFlag(flags f) const {
 	return (P & f) != 0;
 };
 
-Blaze::Byte Blaze::CPU::load8(Byte bank, Word addressLow) const {
+Blaze::Byte Blaze::CPU::load8(Address address) const {
 	// TODO: load from memory
 	return 0;
+};
+
+Blaze::Word Blaze::CPU::load16(Address address) const {
+	// TODO: load from memory
+	return 0;
+};
+
+Blaze::Address Blaze::CPU::load24(Address address) const {
+	// TODO: load from memory
+	return 0;
+};
+
+Blaze::Byte Blaze::CPU::load8(Byte bank, Word addressLow) const {
+	return load8(concat24(bank, addressLow));
 };
 
 Blaze::Word Blaze::CPU::load16(Byte bank, Word addressLow) const {
-	// TODO: load from memory
-	return 0;
+	return load16(concat24(bank, addressLow));
 };
 
 Blaze::Address Blaze::CPU::load24(Byte bank, Word addressLow) const {
-	// TODO: load from memory
-	return 0;
+	return load24(concat24(bank, addressLow));
+};
+
+void Blaze::CPU::store8(Address address, Byte value) {
+	// TODO: store to memory
+};
+
+void Blaze::CPU::store16(Address address, Word value) {
+	// TODO: store to memory
+};
+
+void Blaze::CPU::store24(Address address, Address value) {
+	// TODO: store to memory
+};
+
+void Blaze::CPU::store8(Byte bank, Word addressLow, Byte value) {
+	return store8(concat24(bank, addressLow), value);
+};
+
+void Blaze::CPU::store16(Byte bank, Word addressLow, Word value) {
+	return store16(concat24(bank, addressLow), value);
+};
+
+void Blaze::CPU::store24(Byte bank, Word addressLow, Address value) {
+	return store24(concat24(bank, addressLow), value);
 };
 
 Blaze::Address Blaze::CPU::decodeAddress(AddressingMode mode) const {
@@ -256,9 +303,21 @@ Blaze::Address Blaze::CPU::decodeAddress(AddressingMode mode) const {
 	}
 };
 
+Blaze::Word Blaze::CPU::loadOperand(AddressingMode addressingMode) const {
+	Address operand = decodeAddress(addressingMode);
+	if (addressingMode != AddressingMode::Immediate) {
+		operand = load16(operand);
+	}
+
+	// make sure the operand is actually 16 bits wide and not 24 bits
+	assert((operand & 0xffff) == operand);
+
+	return operand;
+};
+
 // special thanks to https://llx.com/Neil/a2/opcodes.html for some wisdom on how intelligently decode the instructions
 // (without having a giant switch statement)
-Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0) {
+Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0) const {
 	// before doing any smart decoding, we first do some simple opcode comparisons.
 	// there are some instructions that only require a single byte (their opcode).
 	// then there are those instructions that require multiple bytes, but have no
@@ -668,7 +727,9 @@ Blaze::Cycles Blaze::CPU::executeNOP() {
 };
 
 Blaze::Cycles Blaze::CPU::executePEA() {
-	// TODO
+	Word address = load16(PC + 1);
+	SP -= 2;
+	store16(0, SP + 1, address);
 	return 0;
 };
 
@@ -878,7 +939,24 @@ Blaze::Cycles Blaze::CPU::executeXCE() {
 };
 
 Blaze::Cycles Blaze::CPU::executeADC(AddressingMode mode) {
-	// TODO
+	// use `Address` instead of `Word` so that we have extra bits to properly compute the carry
+	Address left = A;
+	Address right = loadOperand(mode);
+	Address result = left + right + getCarry();
+	Address wordMask = (memoryAndAccumulatorAre8Bit() ? 0xff : 0xffff);
+	Word wordResult = result & wordMask;
+
+	if (memoryAndAccumulatorAre8Bit()) {
+		// the top bits are preserved
+		A = (A & 0xff00) | wordResult;
+	} else {
+		A = wordResult;
+	}
+
+	setZeroNegFlags(A, true);
+	setOverflowFlag(left, right, wordResult);
+	setFlag(flags::c, (result & ~wordMask) != 0);
+
 	return 0;
 };
 

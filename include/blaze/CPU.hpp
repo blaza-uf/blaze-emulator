@@ -371,16 +371,31 @@ namespace Blaze {
 		// System Bus
 		Bus *bus = nullptr;
 
+		Byte load8(Address address) const;
 		Byte load8(Byte bank, Word addressLow) const;
+		Word load16(Address address) const;
 		Word load16(Byte bank, Word addressLow) const;
+		Address load24(Address address) const;
 		Address load24(Byte bank, Word addressLow) const;
+
+		void store8(Address address, Byte value);
+		void store8(Byte bank, Word addressLow, Byte value);
+		void store16(Address address, Word value);
+		void store16(Byte bank, Word addressLow, Word value);
+		void store24(Address address, Address value);
+		void store24(Byte bank, Word addressLow, Address value);
 
 		// this function is meant to be called by instruction execution functions to obtain the address
 		// of the operand with the given addressing mode.
 		Address decodeAddress(AddressingMode addressingMode) const;
 
+		// this function is meant to be used by simple instructions that only need to load data from the
+		// memory operands (which is true for most instructions). if you need to both read from and write to
+		// a memory operand, you should use `decodeAddress` + `load16` instead.
+		Word loadOperand(AddressingMode addressingMode) const;
+
 		// decodes the current instruction based on the given opcode, returning the decoded instruction information
-		Instruction decodeInstruction(Byte opcode);
+		Instruction decodeInstruction(Byte opcode) const;
 
 		// executes the current (pre-decoded) instruction with the given information
 		Cycles executeInstruction(const Instruction& info);
@@ -482,9 +497,24 @@ namespace Blaze {
 		Byte read(Address addr);				// Read from the Bus
 		void write(Address addr, Byte data);	// Write to the Bus
 
-		bool getFlag(flags f);
+		bool getFlag(flags f) const;
 		void setFlag(flags f, bool s);
 
+		Byte getCarry() const {
+			return getFlag(flags::c) ? 1 : 0;
+		};
+
 		void setZeroNegFlags(Word a_x_y, bool isAccumulator);
+		// this is only used for ADC and SBC
+		void setOverflowFlag(Word leftOperand, Word rightOperand, Word result);
+
+		// just a convenience method to make it more clear what we're checking for
+		bool memoryAndAccumulatorAre8Bit() const {
+			return getFlag(flags::m);
+		};
+
+		bool indexRegistersAre8Bit() const {
+			return getFlag(flags::x);
+		};
 	};
 } // namespace Blaze
