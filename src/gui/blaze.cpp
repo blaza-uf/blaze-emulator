@@ -5,6 +5,7 @@
 #include <SDL_render.h>
 #include <SDL_video.h>
 #include <blaze/color.hpp>
+#include <map>
 
 namespace Blaze {
 	static constexpr int defaultWindowWidth         = 800;
@@ -18,6 +19,7 @@ int main(int argc, char** argv) {
 	SDL_Renderer* renderer;
 	SDL_Surface* surface;
 	SDL_Event event;
+    std::map<int, bool> keyboard;
 
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to initialize SDL: %s", SDL_GetError());
@@ -36,10 +38,22 @@ int main(int argc, char** argv) {
 	while (true) {
 		SDL_PollEvent(&event);
 
-		if (event.type == SDL_QUIT) {
-			// user wants to quit the application
-			break;
-		}
+        switch (event.type) {
+            case SDL_QUIT:
+                // exit if window
+                break;
+            case SDL_KEYDOWN:
+                keyboard[event.key.keysym.sym] = false
+                        break;
+            case SDL_KEYUP:
+                keyboard[event.key.keysym.sym] = true;
+                break;
+            default:
+                break;
+        }
+		
+		// handle input
+
 
 		// clear the window
 		SDL_SetRenderDrawColor(renderer, Blaze::defaultWindowColor.r, Blaze::defaultWindowColor.g, Blaze::defaultWindowColor.b, Blaze::defaultWindowColor.a);
