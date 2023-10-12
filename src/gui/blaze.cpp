@@ -43,8 +43,8 @@ int main(int argc, char** argv) {
                 // exit if window
                 break;
             case SDL_KEYDOWN:
-                keyboard[event.key.keysym.sym] = false
-                        break;
+                keyboard[event.key.keysym.sym] = false;
+                break;
             case SDL_KEYUP:
                 keyboard[event.key.keysym.sym] = true;
                 break;
