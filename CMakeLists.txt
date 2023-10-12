@@ -19,8 +19,9 @@ add_subdirectory(vendor/catch2 EXCLUDE_FROM_ALL)
 
 add_library(blaze-core STATIC
 	src/core/core.cpp
- 	src/core/MemRam.cpp
+	src/core/MemRam.cpp
 	src/core/CPU.cpp
+	src/core/Bus.cpp
 )
 
 target_include_directories(blaze-core PUBLIC
@@ -44,6 +45,7 @@ target_link_libraries(blaze PRIVATE SDL2::SDL2-static)
 
 add_executable(blaze-core-tests
 	test/color.cpp
+	test/cpu.cpp
 )
 
 target_link_libraries(blaze-core-tests PRIVATE blaze-core Catch2::Catch2WithMain)
