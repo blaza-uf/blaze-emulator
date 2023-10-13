@@ -961,7 +961,9 @@ Blaze::Cycles Blaze::CPU::executeADC(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeAND(AddressingMode mode) {
-	// TODO
+	Address val = loadOperand(mode);
+	A &= val;
+	setZeroNegFlags(A, true);
 	return 0;
 };
 
@@ -971,22 +973,58 @@ Blaze::Cycles Blaze::CPU::executeASL(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeBIT(AddressingMode mode) {
-	// TODO
+	Address val = loadOperand(mode);
+	setFlag(flags::z, !(A & val));
+	if (memoryAndAccumulatorAre8Bit()) {
+		setFlag(flags::n, ((val & (1u << 7)) != 0));
+		setFlag(flags::v, ((val & (1u << 6)) != 0));
+	}
+	else {
+		setFlag(flags::n, ((val & (1u << 15)) != 0));
+		setFlag(flags::v, ((val & (1u << 14)) != 0));
+	}
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeCMP(AddressingMode mode) {
-	// TODO
+	Address val = loadOperand(mode);
+	Address temp = A - val;
+	setFlag(flags::z, (A == val));
+	setFlag(flags::c, (A >= val));
+	if (memoryAndAccumulatorAre8Bit()) {
+		setFlag(flags::n, ((temp & (1u << 7)) > 0));
+	}
+	else {
+		setFlag(flags::n, ((temp & (1u << 15)) > 0));
+	}
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeCPX(AddressingMode mode) {
-	// TODO
+	Address val = loadOperand(mode);
+	Address temp = X - val;
+	setFlag(flags::z, (X == val));
+	setFlag(flags::c, (X >= val));
+	if (indexRegistersAre8Bit()) {
+		setFlag(flags::n, ((temp & (1u << 7)) > 0));
+	}
+	else {
+		setFlag(flags::n, ((temp & (1u << 15)) > 0));
+	}
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeCPY(AddressingMode mode) {
-	// TODO
+	Address val = loadOperand(mode);
+	Address temp = Y - val;
+	setFlag(flags::z, (Y == val));
+	setFlag(flags::c, (Y >= val));
+	if (indexRegistersAre8Bit()) {
+		setFlag(flags::n, ((temp & (1u << 7)) > 0));
+	}
+	else {
+		setFlag(flags::n, ((temp & (1u << 15)) > 0));
+	}
 	return 0;
 };
 
@@ -996,7 +1034,9 @@ Blaze::Cycles Blaze::CPU::executeDEC(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeEOR(AddressingMode mode) {
-	// TODO
+	Address val = loadOperand(mode);
+	A ^= val;
+	setZeroNegFlags(A, true);
 	return 0;
 };
 
@@ -1036,7 +1076,9 @@ Blaze::Cycles Blaze::CPU::executeLSR(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeORA(AddressingMode mode) {
-	// TODO
+	Address val = loadOperand(mode);
+	A |= val;
+	setZeroNegFlags(A, true);
 	return 0;
 };
 
