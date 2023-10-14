@@ -866,22 +866,29 @@ Blaze::Cycles Blaze::CPU::executeTAY() {
 };
 
 Blaze::Cycles Blaze::CPU::executeTCD() {
-	// TODO
+	// TODO TO CHECK --What should be sent to the setZeroNegFlags(--,--) function
+	DR = A;
+	setZeroNegFlags(A, true);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeTCS() {
-	// TODO
+	// TODO TO CHECK
+	SP = A;
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeTDC() {
-	// TODO
+	// TODO TO CHECK 
+	A = DR;
+	setZeroNegFlags(A, true);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeTSC() {
-	// TODO
+	// TODO TO CHECK 
+	A = SP;
+	setZeroNegFlags(A, true);
 	return 0;
 };
 
@@ -903,7 +910,9 @@ Blaze::Cycles Blaze::CPU::executeTXS() {
 };
 
 Blaze::Cycles Blaze::CPU::executeTXY() {
-	// TODO
+	// TODO TO CHECK 
+	Y = X;
+	setZeroNegFlags(X, false);
 	return 0;
 };
 
@@ -914,7 +923,9 @@ Blaze::Cycles Blaze::CPU::executeTYA() {
 };
 
 Blaze::Cycles Blaze::CPU::executeTYX() {
-	// TODO
+	// TODO TO CHECK 
+	X = Y;
+	setZeroNegFlags(X, false);
 	return 0;
 };
 
