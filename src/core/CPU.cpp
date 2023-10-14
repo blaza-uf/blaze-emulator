@@ -1056,17 +1056,26 @@ Blaze::Cycles Blaze::CPU::executeJSR(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeLDA(AddressingMode mode) {
-	// TODO
+	// TODO TO CHECK
+	Address val = loadOperand(mode);
+	A = val;
+	setZeroNegFlags(A, true);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeLDX(AddressingMode mode) {
-	// TODO
+	// TODO TO CHECK
+	Address val = loadOperand(mode);
+	X = val;
+	setZeroNegFlags(X, false); 
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeLDY(AddressingMode mode) {
-	// TODO
+	// TODO TO CHECK
+	Address val = loadOperand(mode);
+	Y = val;
+	setZeroNegFlags(Y, false); 
 	return 0;
 };
 
