@@ -862,22 +862,26 @@ Blaze::Cycles Blaze::CPU::executeTAY() {
 };
 
 Blaze::Cycles Blaze::CPU::executeTCD() {
-	// TODO
+	// TODO TO CHECK --What should be sent to the setZeroNegFlags(-) function
+	DR = A.forceLoadFull();
+	setZeroNegFlags(A);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeTCS() {
-	// TODO
+	SP = A.forceLoadFull();
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeTDC() {
-	// TODO
+	A.forceStoreFull(DR);
+	setZeroNegFlags(A);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeTSC() {
-	// TODO
+	A.forceStoreFull(SP);
+	setZeroNegFlags(A);
 	return 0;
 };
 
@@ -903,7 +907,8 @@ Blaze::Cycles Blaze::CPU::executeTXS() {
 };
 
 Blaze::Cycles Blaze::CPU::executeTXY() {
-	// TODO
+	Y = X.load();
+	setZeroNegFlags(Y);
 	return 0;
 };
 
@@ -914,7 +919,8 @@ Blaze::Cycles Blaze::CPU::executeTYA() {
 };
 
 Blaze::Cycles Blaze::CPU::executeTYX() {
-	// TODO
+	X = Y.load();
+	setZeroNegFlags(X);
 	return 0;
 };
 
