@@ -869,7 +869,7 @@ Blaze::Cycles Blaze::CPU::executeTCD() {
 };
 
 Blaze::Cycles Blaze::CPU::executeTCS() {
-	SP = A.forceFullLoad();
+	SP = A.forceLoadFull();
 	return 0;
 };
 
