@@ -880,7 +880,7 @@ Blaze::Cycles Blaze::CPU::executeTDC() {
 };
 
 Blaze::Cycles Blaze::CPU::executeTSC() {
-	A.forceFullStore(SP);
+	A.forceStoreFull(SP);
 	setZeroNegFlags(A);
 	return 0;
 };
