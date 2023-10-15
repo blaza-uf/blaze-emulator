@@ -908,7 +908,7 @@ Blaze::Cycles Blaze::CPU::executeTXS() {
 
 Blaze::Cycles Blaze::CPU::executeTXY() {
 	Y = X.load();
-	setZeroNegFlags(X);
+	setZeroNegFlags(Y);
 	return 0;
 };
 
