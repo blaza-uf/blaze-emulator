@@ -887,7 +887,7 @@ Blaze::Cycles Blaze::CPU::executeTDC() {
 
 Blaze::Cycles Blaze::CPU::executeTSC() {
 	// TODO TO CHECK 
-	A = SP;
+	A.forceFullStore(SP);
 	setZeroNegFlags(A, true);
 	return 0;
 };
