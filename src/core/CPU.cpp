@@ -863,7 +863,7 @@ Blaze::Cycles Blaze::CPU::executeTAY() {
 
 Blaze::Cycles Blaze::CPU::executeTCD() {
 	// TODO TO CHECK --What should be sent to the setZeroNegFlags(-) function
-	DR = A.forceFullLoad();
+	DR = A.forceLoadFull();
 	setZeroNegFlags(A);
 	return 0;
 };
