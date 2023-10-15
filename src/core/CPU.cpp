@@ -107,7 +107,9 @@ static constexpr uint32_t concat24(uint8_t hi, uint8_t mid, uint8_t lo) {
 void Blaze::CPU::reset(MemRam &memory) {
 	PC = 0xFFFC; // need to load w/contents of reset vector
 	DBR = PBR = 0x00;
-	X = Y = 0x00;
+	A.reset();
+	X.reset();
+	Y.reset();
 	SP = 0x0100;
 
 	setFlag(d, false);
@@ -121,15 +123,9 @@ void Blaze::CPU::reset(MemRam &memory) {
 	_memory->reset();
 }
 
-void Blaze::CPU::setZeroNegFlags(Word a_x_y, bool isAccumulator) {
-	//  we need to change the bit we check for here
-	//  when we're using 8-bit mode instead of 16-bit mode
-	if ((!isAccumulator && indexRegistersAre8Bit()) || (isAccumulator && memoryAndAccumulatorAre8Bit())) {
-		setFlag(n, ((a_x_y & (1u << 7)) != 0));
-	} else {
-		setFlag(n, ((a_x_y & (1u << 15)) != 0));
-	}
-	setFlag(z, (a_x_y == 0));
+void Blaze::CPU::setZeroNegFlags(const Register& reg) {
+	setFlag(n, reg.mostSignificantBit());
+	setFlag(z, reg.load() == 0);
 }
 
 void Blaze::CPU::setOverflowFlag(Word leftOperand, Word rightOperand, Word result) {
@@ -247,11 +243,11 @@ Blaze::Address Blaze::CPU::decodeAddress(AddressingMode mode) const {
 		case AddressingMode::Absolute:
 			return concat24(DBR, inst[2], inst[1]);
 		case AddressingMode::AbsoluteIndexedIndirect:
-			return load16(0, concat16(inst[2], inst[1]) + X);
+			return load16(0, concat16(inst[2], inst[1]) + X.load());
 		case AddressingMode::AbsoluteIndexedX:
-			return concat24(DBR, concat16(inst[2], inst[1]) + X);
+			return concat24(DBR, concat16(inst[2], inst[1]) + X.load());
 		case AddressingMode::AbsoluteIndexedY:
-			return concat24(DBR, concat16(inst[2], inst[1]) + Y);
+			return concat24(DBR, concat16(inst[2], inst[1]) + Y.load());
 
 		case AddressingMode::AbsoluteIndirect: {
 			auto base = concat16(inst[2], inst[1]);
@@ -263,19 +259,19 @@ Blaze::Address Blaze::CPU::decodeAddress(AddressingMode mode) const {
 		} break;
 
 		case AddressingMode::AbsoluteLongIndexedX:
-			return concat24(inst[3], inst[2], inst[1]) + X;
+			return concat24(inst[3], inst[2], inst[1]) + X.load();
 		case AddressingMode::AbsoluteLong:
 			return concat24(inst[3], inst[2], inst[1]);
 		case AddressingMode::DirectIndexedIndirect:
-			return concat24(DBR, load16(0, DR + X + inst[1]));
+			return concat24(DBR, load16(0, DR + X.load() + inst[1]));
 		case AddressingMode::DirectIndexedX:
-			return concat24(0, DR + X + inst[1]);
+			return concat24(0, DR + X.load() + inst[1]);
 		case AddressingMode::DirectIndexedY:
-			return concat24(0, DR + Y + inst[1]);
+			return concat24(0, DR + Y.load() + inst[1]);
 		case AddressingMode::DirectIndirectIndexed:
-			return concat24(DBR, load16(0, DR + inst[1])) + Y;
+			return concat24(DBR, load16(0, DR + inst[1])) + Y.load();
 		case AddressingMode::DirectIndirectLongIndexed:
-			return load24(0, DR + inst[1]) + Y;
+			return load24(0, DR + inst[1]) + Y.load();
 		case AddressingMode::DirectIndirectLong:
 			return load24(0, DR + inst[1]);
 		case AddressingMode::DirectIndirect:
@@ -291,7 +287,7 @@ Blaze::Address Blaze::CPU::decodeAddress(AddressingMode mode) const {
 		case AddressingMode::StackRelative:
 			return concat24(0, SP + inst[1]);
 		case AddressingMode::StackRelativeIndirectIndexed:
-			return concat24(DBR, load16(0, SP + inst[1])) + Y;
+			return concat24(DBR, load16(0, SP + inst[1])) + Y.load();
 
 		case AddressingMode::Accumulator:
 		case AddressingMode::BlockMove:
@@ -679,25 +675,25 @@ Blaze::Cycles Blaze::CPU::executeCOP() {
 
 Blaze::Cycles Blaze::CPU::executeDEX() {
 	X--;
-	setZeroNegFlags(X, false);
+	setZeroNegFlags(X);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeDEY() {
 	Y--;
-	setZeroNegFlags(Y, false);
+	setZeroNegFlags(Y);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeINX() {
 	X++;
-	setZeroNegFlags(X, false);
+	setZeroNegFlags(X);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeINY() {
 	Y++;
-	setZeroNegFlags(Y, false);
+	setZeroNegFlags(Y);
 	return 0;
 };
 
@@ -854,14 +850,14 @@ Blaze::Cycles Blaze::CPU::executeSTP() {
 };
 
 Blaze::Cycles Blaze::CPU::executeTAX() {
-	X = A;
-	setZeroNegFlags(X, false);
+	X = A.forceLoadFull();
+	setZeroNegFlags(X);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeTAY() {
-	Y = A;
-	setZeroNegFlags(Y, false);
+	Y = A.forceLoadFull();
+	setZeroNegFlags(Y);
 	return 0;
 };
 
@@ -894,18 +890,22 @@ Blaze::Cycles Blaze::CPU::executeTSC() {
 
 Blaze::Cycles Blaze::CPU::executeTSX() {
 	X = SP;
-	setZeroNegFlags(X, false);
+	setZeroNegFlags(X);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeTXA() {
-	A = X;
-	setZeroNegFlags(A, true);
+	A = X.load();
+	setZeroNegFlags(A);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeTXS() {
-	SP = X;
+	if (e != 0) {
+		SP = (1u << 8) | (X.load() & 0xff);
+	} else {
+		SP = X.load();
+	}
 	return 0;
 };
 
@@ -917,8 +917,8 @@ Blaze::Cycles Blaze::CPU::executeTXY() {
 };
 
 Blaze::Cycles Blaze::CPU::executeTYA() {
-	A = Y;
-	setZeroNegFlags(A, true);
+	A = Y.load();
+	setZeroNegFlags(A);
 	return 0;
 };
 
@@ -951,20 +951,15 @@ Blaze::Cycles Blaze::CPU::executeXCE() {
 
 Blaze::Cycles Blaze::CPU::executeADC(AddressingMode mode) {
 	// use `Address` instead of `Word` so that we have extra bits to properly compute the carry
-	Address left = A;
+	Address left = A.load();
 	Address right = loadOperand(mode);
 	Address result = left + right + getCarry();
 	Address wordMask = (memoryAndAccumulatorAre8Bit() ? 0xff : 0xffff);
 	Word wordResult = result & wordMask;
 
-	if (memoryAndAccumulatorAre8Bit()) {
-		// the top bits are preserved
-		A = (A & 0xff00) | wordResult;
-	} else {
-		A = wordResult;
-	}
+	A = wordResult;
 
-	setZeroNegFlags(A, true);
+	setZeroNegFlags(A);
 	setOverflowFlag(left, right, wordResult);
 	setFlag(flags::c, (result & ~wordMask) != 0);
 
@@ -972,9 +967,9 @@ Blaze::Cycles Blaze::CPU::executeADC(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeAND(AddressingMode mode) {
-	Address val = loadOperand(mode);
+	Word val = loadOperand(mode);
 	A &= val;
-	setZeroNegFlags(A, true);
+	setZeroNegFlags(A);
 	return 0;
 };
 
@@ -984,8 +979,8 @@ Blaze::Cycles Blaze::CPU::executeASL(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeBIT(AddressingMode mode) {
-	Address val = loadOperand(mode);
-	setFlag(flags::z, !(A & val));
+	Word val = loadOperand(mode);
+	setFlag(flags::z, (A & val) == 0);
 	if (memoryAndAccumulatorAre8Bit()) {
 		setFlag(flags::n, ((val & (1u << 7)) != 0));
 		setFlag(flags::v, ((val & (1u << 6)) != 0));
@@ -998,8 +993,8 @@ Blaze::Cycles Blaze::CPU::executeBIT(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeCMP(AddressingMode mode) {
-	Address val = loadOperand(mode);
-	Address temp = A - val;
+	Word val = loadOperand(mode);
+	Word temp = A.load() - val;
 	setFlag(flags::z, (A == val));
 	setFlag(flags::c, (A >= val));
 	if (memoryAndAccumulatorAre8Bit()) {
@@ -1012,8 +1007,8 @@ Blaze::Cycles Blaze::CPU::executeCMP(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeCPX(AddressingMode mode) {
-	Address val = loadOperand(mode);
-	Address temp = X - val;
+	Word val = loadOperand(mode);
+	Word temp = X - val;
 	setFlag(flags::z, (X == val));
 	setFlag(flags::c, (X >= val));
 	if (indexRegistersAre8Bit()) {
@@ -1026,8 +1021,8 @@ Blaze::Cycles Blaze::CPU::executeCPX(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeCPY(AddressingMode mode) {
-	Address val = loadOperand(mode);
-	Address temp = Y - val;
+	Word val = loadOperand(mode);
+	Word temp = Y - val;
 	setFlag(flags::z, (Y == val));
 	setFlag(flags::c, (Y >= val));
 	if (indexRegistersAre8Bit()) {
@@ -1045,9 +1040,9 @@ Blaze::Cycles Blaze::CPU::executeDEC(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeEOR(AddressingMode mode) {
-	Address val = loadOperand(mode);
+	Word val = loadOperand(mode);
 	A ^= val;
-	setZeroNegFlags(A, true);
+	setZeroNegFlags(A);
 	return 0;
 };
 
@@ -1068,25 +1063,25 @@ Blaze::Cycles Blaze::CPU::executeJSR(AddressingMode mode) {
 
 Blaze::Cycles Blaze::CPU::executeLDA(AddressingMode mode) {
 	// TODO TO CHECK
-	Address val = loadOperand(mode);
+	Word val = loadOperand(mode);
 	A = val;
-	setZeroNegFlags(A, true);
+	setZeroNegFlags(A);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeLDX(AddressingMode mode) {
 	// TODO TO CHECK
-	Address val = loadOperand(mode);
+	Word val = loadOperand(mode);
 	X = val;
-	setZeroNegFlags(X, false); 
+	setZeroNegFlags(X);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeLDY(AddressingMode mode) {
 	// TODO TO CHECK
-	Address val = loadOperand(mode);
+	Word val = loadOperand(mode);
 	Y = val;
-	setZeroNegFlags(Y, false); 
+	setZeroNegFlags(Y);
 	return 0;
 };
 
@@ -1096,9 +1091,9 @@ Blaze::Cycles Blaze::CPU::executeLSR(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeORA(AddressingMode mode) {
-	Address val = loadOperand(mode);
+	Word val = loadOperand(mode);
 	A |= val;
-	setZeroNegFlags(A, true);
+	setZeroNegFlags(A);
 	return 0;
 };
 
@@ -1150,4 +1145,154 @@ Blaze::Cycles Blaze::CPU::executeTSB(AddressingMode mode) {
 Blaze::Cycles Blaze::CPU::executeBRA(ConditionCode condition, bool passConditionIfBitSet) {
 	// TODO
 	return 0;
+};
+
+bool Blaze::CPU::Register::using8BitMode() const {
+	return (_flags & _mask) != 0;
+};
+
+void Blaze::CPU::Register::reset() {
+	_value = 0;
+};
+
+Blaze::Word Blaze::CPU::Register::load() const {
+	if (using8BitMode()) {
+		return _value & 0xff;
+	} else {
+		return _value;
+	}
+};
+
+void Blaze::CPU::Register::store(Word value) {
+	if (using8BitMode()) {
+		if (_mask == flags::m) {
+			// the accumulator preserves the high byte
+			_value = (_value & 0xff00) | (value & 0xff);
+		} else {
+			// the index registers clear the high byte
+			_value = value & 0xff;
+		}
+	} else {
+		_value = value;
+	}
+};
+
+Blaze::Word Blaze::CPU::Register::forceLoadFull() const {
+	return _value;
+};
+
+void Blaze::CPU::Register::forceStoreFull(Word value) {
+	_value = value;
+};
+
+bool Blaze::CPU::Register::mostSignificantBit() const {
+	if (using8BitMode()) {
+		return (_value & (1u << 7)) != 0;
+	} else {
+		return (_value & (1u << 15)) != 0;
+	}
+};
+
+Blaze::CPU::Register& Blaze::CPU::Register::operator+=(Word rhs) {
+	store(load() + rhs);
+	return *this;
+};
+
+Blaze::CPU::Register& Blaze::CPU::Register::operator-=(Word rhs) {
+	store(load() - rhs);
+	return *this;
+};
+
+Blaze::CPU::Register& Blaze::CPU::Register::operator*=(Word rhs) {
+	store(load() * rhs);
+	return *this;
+};
+
+Blaze::CPU::Register& Blaze::CPU::Register::operator/=(Word rhs) {
+	store(load() / rhs);
+	return *this;
+};
+
+Blaze::CPU::Register& Blaze::CPU::Register::operator&=(Word rhs) {
+	store(load() & rhs);
+	return *this;
+};
+
+Blaze::CPU::Register& Blaze::CPU::Register::operator|=(Word rhs) {
+	store(load() | rhs);
+	return *this;
+};
+
+Blaze::CPU::Register& Blaze::CPU::Register::operator^=(Word rhs) {
+	store(load() ^ rhs);
+	return *this;
+};
+
+Blaze::CPU::Register& Blaze::CPU::Register::operator++() {
+	store(load() + 1);
+	return *this;
+};
+
+Blaze::CPU::Register& Blaze::CPU::Register::operator++(int) {
+	store(load() + 1);
+	return *this;
+};
+
+Blaze::CPU::Register& Blaze::CPU::Register::operator--() {
+	store(load() - 1);
+	return *this;
+};
+
+Blaze::CPU::Register& Blaze::CPU::Register::operator--(int) {
+	store(load() - 1);
+	return *this;
+};
+
+Blaze::CPU::Register& Blaze::CPU::Register::operator=(Word rhs) {
+	store(rhs);
+	return *this;
+};
+
+bool Blaze::CPU::Register::operator==(Word rhs) const {
+	return load() == rhs;
+};
+
+bool Blaze::CPU::Register::operator!=(Word rhs) const {
+	return load() != rhs;
+};
+
+bool Blaze::CPU::Register::operator>=(Word rhs) const {
+	return load() >= rhs;
+};
+
+bool Blaze::CPU::Register::operator<=(Word rhs) const {
+	return load() <= rhs;
+};
+
+Blaze::Word Blaze::CPU::Register::operator+(Word rhs) const {
+	return load() + rhs;
+};
+
+Blaze::Word Blaze::CPU::Register::operator-(Word rhs) const {
+	return load() - rhs;
+};
+
+Blaze::Word Blaze::CPU::Register::operator*(Word rhs) const {
+	return load() * rhs;
+};
+
+Blaze::Word Blaze::CPU::Register::operator/(Word rhs) const {
+	return load() / rhs;
+};
+
+Blaze::Word Blaze::CPU::Register::operator&(Word rhs) const {
+	return load() & rhs;
+};
+
+Blaze::Word Blaze::CPU::Register::operator|(Word rhs) const {
+	return load() | rhs;
+};
+
+Blaze::Word Blaze::CPU::Register::operator^(Word rhs) const {
+	return load() ^ rhs;
 };

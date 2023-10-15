@@ -354,14 +354,69 @@ namespace Blaze {
 			m = (1 << 5), // accumulator & memory width
 			v = (1 << 6), // overflow
 			n = (1 << 7), // negative
-		} ; flags f;
+		};
+
+		class Register {
+		private:
+			Word _value = 0;
+			flags& _flags;
+			flags _mask;
+
+		public:
+			Register(flags& cpuFlags, flags eightBitMask):
+				_flags(cpuFlags),
+				_mask(eightBitMask)
+				{};
+
+			bool using8BitMode() const;
+
+			void reset();
+
+			Word load() const;
+			void store(Word value);
+
+			Word forceLoadFull() const;
+			void forceStoreFull(Word value);
+
+			bool mostSignificantBit() const;
+
+			Register& operator+=(Word rhs);
+			Register& operator-=(Word rhs);
+			Register& operator*=(Word rhs);
+			Register& operator/=(Word rhs);
+			Register& operator&=(Word rhs);
+			Register& operator|=(Word rhs);
+			Register& operator^=(Word rhs);
+
+			Register& operator++();
+			Register& operator++(int);
+			Register& operator--();
+			Register& operator--(int);
+
+			Register& operator=(Word rhs);
+
+			bool operator==(Word rhs) const;
+			bool operator!=(Word rhs) const;
+			bool operator>=(Word rhs) const;
+			bool operator<=(Word rhs) const;
+
+			Word operator+(Word rhs) const;
+			Word operator-(Word rhs) const;
+			Word operator*(Word rhs) const;
+			Word operator/(Word rhs) const;
+			Word operator&(Word rhs) const;
+			Word operator|(Word rhs) const;
+			Word operator^(Word rhs) const;
+		};
+
+		flags f;
 
 		Byte e = 1; //emulation mode. separate from p register flags
 
-		Word A; // accumulator
+		Register A; // accumulator
 		Word DR; // direct
 		Word PC; // program counter
-		Word X, Y; // index registers
+		Register X, Y; // index registers
 		Word SP; // stack pointer
 		Byte DBR; // data bank
 		Byte PBR; // program bank
@@ -491,6 +546,12 @@ namespace Blaze {
 
 		Cycles executeBRA(ConditionCode condition, bool passConditionIfBitSet);
 
+		CPU():
+			A(f, flags::m),
+			X(f, flags::x),
+			Y(f, flags::x)
+			{};
+
 		void reset(MemRam &memory);      		// Reset CPU internal state
 		void execute(); 		// Execute the current instruction
 		void clock();                    		// CPU driver
@@ -504,7 +565,7 @@ namespace Blaze {
 			return getFlag(flags::c) ? 1 : 0;
 		};
 
-		void setZeroNegFlags(Word a_x_y, bool isAccumulator);
+		void setZeroNegFlags(const Register& reg);
 		// this is only used for ADC and SBC
 		void setOverflowFlag(Word leftOperand, Word rightOperand, Word result);
 

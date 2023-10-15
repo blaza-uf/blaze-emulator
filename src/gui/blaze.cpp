@@ -5,9 +5,12 @@
 #include <SDL_render.h>
 #include <SDL_video.h>
 #include <SDL_syswm.h>
-#include <Windows.h>
 #include <blaze/color.hpp>
 #include <map>
+
+#ifdef _WIN32
+	#include <Windows.h>
+#endif // _WIN32
 
 namespace Blaze {
 	static constexpr int defaultWindowWidth         = 800;
@@ -15,7 +18,9 @@ namespace Blaze {
 	static constexpr const char* defaultWindowTitle = "Blaze";
 	static constexpr Color defaultWindowColor { 0, 0, 0 };
 
+#ifdef _WIN32
 	static constexpr UINT_PTR ID_FILE_EXIT = 1;
+#endif // _WIN32
 } // namespace Blaze
 
 int main(int argc, char** argv) {
@@ -26,9 +31,12 @@ int main(int argc, char** argv) {
 	std::map<int, bool> keyboard;
 	bool running = true;
 	SDL_SysWMinfo mainWindowInfo;
+
+#ifdef _WIN32
 	HWND win32MainWindow = nullptr;
 	HMENU mainMenu = nullptr;
 	HMENU fileMenu = nullptr;
+#endif // _WIN32
 
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to initialize SDL: %s", SDL_GetError());
@@ -52,6 +60,7 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
+#ifdef _WIN32
 	win32MainWindow = mainWindowInfo.info.win.window;
 
 	// set up the menus
@@ -68,6 +77,7 @@ int main(int argc, char** argv) {
 
 	// enable Win32 events in the SDL event loop
 	SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+#endif // _WIN32
 
 	// main event loop
 	while (running) {
@@ -87,6 +97,7 @@ int main(int argc, char** argv) {
 				keyboard[event.key.keysym.sym] = true;
 				break;
 
+#ifdef _WIN32
 			case SDL_SYSWMEVENT:
 				if (event.syswm.msg->msg.win.msg == WM_COMMAND) {
 					switch (LOWORD(event.syswm.msg->msg.win.wParam)) {
@@ -96,6 +107,7 @@ int main(int argc, char** argv) {
 					}
 				}
 				break;
+#endif // _WIN32
 
 			default:
 				break;
