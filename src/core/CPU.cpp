@@ -874,7 +874,7 @@ Blaze::Cycles Blaze::CPU::executeTCD() {
 
 Blaze::Cycles Blaze::CPU::executeTCS() {
 	// TODO TO CHECK
-	SP = A;
+	SP = A.forceFullLoad();
 	return 0;
 };
 
