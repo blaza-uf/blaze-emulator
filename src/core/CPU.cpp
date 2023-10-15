@@ -911,7 +911,7 @@ Blaze::Cycles Blaze::CPU::executeTXS() {
 
 Blaze::Cycles Blaze::CPU::executeTXY() {
 	// TODO TO CHECK 
-	Y = X;
+	Y = X.load();
 	setZeroNegFlags(X, false);
 	return 0;
 };
