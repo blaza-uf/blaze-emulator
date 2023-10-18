@@ -121,6 +121,52 @@ void Blaze::CPU::reset(MemRam &memory) {
 	_memory->reset();
 }
 
+void Blaze::CPU::irq()
+{
+    // If the interrupt is not masked
+    if (getFlag(i) == 0)
+    {
+        // Push the value of pc onto the stack
+        bus->write(SP - 1, (PC >> 8) & 0x00FF);
+        bus->write(SP, PC & 0x00FF);
+        SP -= 2;
+
+        // Set some interrupt flags first and then push the status register onto the stack
+        setFlag(b, 0);
+        setFlag(i, 1);
+        bus->write(SP, P);
+        SP--;
+
+        // Read the interrupt program address from the interrupt table
+        addrAbs = 0xFFEE;
+        uint16_t low = *bus->read(addrAbs + 0);
+        uint16_t high = *bus->read(addrAbs + 1);
+        PC = (high << 8) | low;
+
+        // Handling IRQs takes 7 CPU cycles
+        cyclesCountDown = 7;
+    }
+}
+
+void Blaze::CPU::nmi()
+{
+    bus->write(SP - 1, (PC >> 8) & 0x00FF);
+    bus->write(SP, PC & 0x00FF);
+    SP -= 2;
+
+    setFlag(b, 0);
+    setFlag(i, 1);
+    bus->write(SP, P);
+    SP--;
+
+    addrAbs = 0xFFEA;
+    uint16_t low = *bus->read(addrAbs + 0);
+    uint16_t high = *bus->read(addrAbs + 1);
+    PC = (high << 8) | low;
+
+    cyclesCountDown = 8;
+}
+
 void Blaze::CPU::setZeroNegFlags(Word a_x_y, bool isAccumulator) {
 	//  we need to change the bit we check for here
 	//  when we're using 8-bit mode instead of 16-bit mode
