@@ -558,6 +558,14 @@ namespace Blaze {
 		Byte read(Address addr);				// Read from the Bus
 		void write(Address addr, Byte data);	// Write to the Bus
 
+		// Interrupt Handling
+		Cycles cyclesCountDown = 0;					// Counts how many cycles the instruction has remaining
+		ClockTicks clockCount = 0;					// A global accumulation of the number of clocks
+		Address addrAbs = 0x00000000;				// The address from last visit
+		void irq();
+		void nmi();
+		void abort();
+
 		bool getFlag(flags f) const;
 		void setFlag(flags f, bool s);
 

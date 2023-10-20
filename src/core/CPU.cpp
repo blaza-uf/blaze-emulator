@@ -123,6 +123,75 @@ void Blaze::CPU::reset(MemRam &memory) {
 	_memory->reset();
 }
 
+void Blaze::CPU::irq() {
+    // If the interrupt is not masked
+    if (getFlag(i) == 0)
+    {
+        // Push the value of pc onto the stack
+        bus->write(SP - 1, (PC >> 8) & 0x00FF);
+        bus->write(SP, PC & 0x00FF);
+        SP -= 2;
+
+        // Set some interrupt flags first and then push the status register onto the stack
+        setFlag(b, 0);
+        setFlag(i, 1);
+        bus->write(SP, P);
+        SP--;
+
+        // Read the interrupt program address from the interrupt table
+        addrAbs = 0xFFEE;
+        uint16_t low = *bus->read(addrAbs + 0);
+        uint16_t high = *bus->read(addrAbs + 1);
+        PC = (high << 8) | low;
+
+        // Handling IRQs takes 7 CPU cycles
+        cyclesCountDown = 7;
+    }
+}
+
+void Blaze::CPU::nmi() {
+    bus->write(SP - 1, (PC >> 8) & 0x00FF);
+    bus->write(SP, PC & 0x00FF);
+    SP -= 2;
+
+    setFlag(b, 0);
+    setFlag(i, 1);
+    bus->write(SP, P);
+    SP--;
+
+    addrAbs = 0xFFEA;
+    uint16_t low = *bus->read(addrAbs + 0);
+    uint16_t high = *bus->read(addrAbs + 1);
+    PC = (high << 8) | low;
+
+    cyclesCountDown = 8;
+}
+
+void Blaze::CPU::abort() {
+    bus->write(SP - 1, (PBR >> 8) & 0x00FF);
+    bus->write(SP, PBR & 0x00FF);
+    SP -= 2;
+
+    bus->write(SP - 1, (PC >> 8) & 0x00FF);
+    bus->write(SP, PC & 0x00FF);
+    SP -= 2;
+
+    bus->write(SP, P);
+    SP--;
+
+    setFlag(i, 1);
+    setFlag(d, 0);
+
+    PBR = 0x00;
+
+    addrAbs = 0x00FFE8;
+    uint16_t low = *bus->read(addrAbs + 0);
+    uint16_t high = *bus->read(addrAbs + 1);
+    PC = (high << 8) | low;
+
+    cyclesCountDown = 8;
+}
+
 void Blaze::CPU::setZeroNegFlags(const Register& reg) {
 	setFlag(n, reg.mostSignificantBit());
 	setFlag(z, reg.load() == 0);
@@ -1108,18 +1177,71 @@ Blaze::Cycles Blaze::CPU::executeSBC(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeSTA(AddressingMode mode) {
-	// TODO
-	return 0;
+	Address address = decodeAddress(mode);
+    if (memoryAndAccumulatorAre8Bit()) {
+        store8(address, A.load());
+    } else {
+        store16(address, A.load());
+    }
+    return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeSTX(AddressingMode mode) {
-	// TODO
-	return 0;
+	Address addr;
+
+    // Determine the address based on the addressing mode.
+    switch (mode) {
+        case AddressingMode::Direct:
+            addr = decodeAddress(AddressingMode::Direct);
+            break;
+        case AddressingMode::Absolute:
+            addr = decodeAddress(AddressingMode::Absolute);
+            break;
+        case AddressingMode::AbsoluteIndexedX:
+            addr = decodeAddress(AddressingMode::AbsoluteIndexedX);
+            break;
+        default:
+            // Unsupported addressing mode for STX instruction
+            return invalidInstruction();
+    }
+
+    // Store the X register's value at the determined address.
+    if (indexRegistersAre8Bit()) {
+        store8(addr, static_cast<Byte>(X.load()));  // Storing only lower 8 bits of X register
+    } else {
+        store16(addr, X.forceLoadFull()); // Storing full 16 bits of X register
+    }
+
+    return 0;  
 };
 
 Blaze::Cycles Blaze::CPU::executeSTY(AddressingMode mode) {
-	// TODO
-	return 0;
+	Address addr;
+
+    // Determine the address based on the addressing mode.
+    switch (mode) {
+        case AddressingMode::Direct:
+            addr = decodeAddress(AddressingMode::Direct);
+            break;
+        case AddressingMode::Absolute:
+            addr = decodeAddress(AddressingMode::Absolute);
+            break;
+        case AddressingMode::AbsoluteIndexedY: // Notice this is different from STX
+            addr = decodeAddress(AddressingMode::AbsoluteIndexedY);
+            break;
+        default:
+            // Unsupported addressing mode for STY instruction
+            return invalidInstruction();
+    }
+
+    // Store the Y register's value at the determined address.
+    if (indexRegistersAre8Bit()) {
+        store8(addr, static_cast<Byte>(Y.load()));  // Storing only lower 8 bits of Y register
+    } else {
+        store16(addr, Y.forceLoadFull()); // Storing full 16 bits of Y register
+    }
+
+    return 0; 
 };
 
 Blaze::Cycles Blaze::CPU::executeSTZ(AddressingMode mode) {
