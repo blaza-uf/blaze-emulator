@@ -564,6 +564,7 @@ namespace Blaze {
 		Address addrAbs = 0x00000000;				// The address from last visit
 		void irq();
 		void nmi();
+		void abort();
 
 		bool getFlag(flags f) const;
 		void setFlag(flags f, bool s);

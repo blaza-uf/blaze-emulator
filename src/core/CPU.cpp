@@ -123,8 +123,7 @@ void Blaze::CPU::reset(MemRam &memory) {
 	_memory->reset();
 }
 
-void Blaze::CPU::irq()
-{
+void Blaze::CPU::irq() {
     // If the interrupt is not masked
     if (getFlag(i) == 0)
     {
@@ -150,8 +149,7 @@ void Blaze::CPU::irq()
     }
 }
 
-void Blaze::CPU::nmi()
-{
+void Blaze::CPU::nmi() {
     bus->write(SP - 1, (PC >> 8) & 0x00FF);
     bus->write(SP, PC & 0x00FF);
     SP -= 2;
@@ -162,6 +160,31 @@ void Blaze::CPU::nmi()
     SP--;
 
     addrAbs = 0xFFEA;
+    uint16_t low = *bus->read(addrAbs + 0);
+    uint16_t high = *bus->read(addrAbs + 1);
+    PC = (high << 8) | low;
+
+    cyclesCountDown = 8;
+}
+
+void Blaze::CPU::abort() {
+    bus->write(SP - 1, (PBR >> 8) & 0x00FF);
+    bus->write(SP, PBR & 0x00FF);
+    SP -= 2;
+
+    bus->write(SP - 1, (PC >> 8) & 0x00FF);
+    bus->write(SP, PC & 0x00FF);
+    SP -= 2;
+
+    bus->write(SP, P);
+    SP--;
+
+    setFlag(i, 1);
+    setFlag(d, 0);
+
+    PBR = 0x00;
+
+    addrAbs = 0x00FFE8;
     uint16_t low = *bus->read(addrAbs + 0);
     uint16_t high = *bus->read(addrAbs + 1);
     PC = (high << 8) | low;
