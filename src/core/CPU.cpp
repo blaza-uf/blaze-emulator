@@ -1177,18 +1177,71 @@ Blaze::Cycles Blaze::CPU::executeSBC(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeSTA(AddressingMode mode) {
-	// TODO
-	return 0;
+	Address address = decodeAddress(mode);
+    if (memoryAndAccumulatorAre8Bit()) {
+        store8(address, A.load());
+    } else {
+        store16(address, A.load());
+    }
+    return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeSTX(AddressingMode mode) {
-	// TODO
-	return 0;
+	Address addr;
+
+    // Determine the address based on the addressing mode.
+    switch (mode) {
+        case AddressingMode::Direct:
+            addr = decodeAddress(AddressingMode::Direct);
+            break;
+        case AddressingMode::Absolute:
+            addr = decodeAddress(AddressingMode::Absolute);
+            break;
+        case AddressingMode::AbsoluteIndexedX:
+            addr = decodeAddress(AddressingMode::AbsoluteIndexedX);
+            break;
+        default:
+            // Unsupported addressing mode for STX instruction
+            return invalidInstruction();
+    }
+
+    // Store the X register's value at the determined address.
+    if (indexRegistersAre8Bit()) {
+        store8(addr, static_cast<Byte>(X.load()));  // Storing only lower 8 bits of X register
+    } else {
+        store16(addr, X.forceLoadFull()); // Storing full 16 bits of X register
+    }
+
+    return 0;  
 };
 
 Blaze::Cycles Blaze::CPU::executeSTY(AddressingMode mode) {
-	// TODO
-	return 0;
+	Address addr;
+
+    // Determine the address based on the addressing mode.
+    switch (mode) {
+        case AddressingMode::Direct:
+            addr = decodeAddress(AddressingMode::Direct);
+            break;
+        case AddressingMode::Absolute:
+            addr = decodeAddress(AddressingMode::Absolute);
+            break;
+        case AddressingMode::AbsoluteIndexedY: // Notice this is different from STX
+            addr = decodeAddress(AddressingMode::AbsoluteIndexedY);
+            break;
+        default:
+            // Unsupported addressing mode for STY instruction
+            return invalidInstruction();
+    }
+
+    // Store the Y register's value at the determined address.
+    if (indexRegistersAre8Bit()) {
+        store8(addr, static_cast<Byte>(Y.load()));  // Storing only lower 8 bits of Y register
+    } else {
+        store16(addr, Y.forceLoadFull()); // Storing full 16 bits of Y register
+    }
+
+    return 0; 
 };
 
 Blaze::Cycles Blaze::CPU::executeSTZ(AddressingMode mode) {
