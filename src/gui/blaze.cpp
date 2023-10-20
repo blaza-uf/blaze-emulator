@@ -53,9 +53,9 @@ int mapSDLToSNES(SDL_Keycode sdlKey) {
             return SNES_KEY_START;
         case SDLK_SPACE:  // could change select mapping
             return SNES_KEY_SELECT;
-        case SDKL_a:
+        case SDLK_a:
             return SNES_KEY_L;
-        case SDKL_s:
+        case SDLK_s:
             return SNES_KEY_R;
         default:
             return -1; // unmapped keys
@@ -85,17 +85,18 @@ int main(int argc, char** argv) {
 	// main event loop
 	while (true) {
 		SDL_PollEvent(&event);
+        int snesKey;
 
         switch (event.type) {
             case SDL_QUIT:
                 // exit if window
                 break;
             case SDL_KEYDOWN:
-                int snesKey = mapSDLToSNES(event.key.keysym.sym);
+                snesKey = mapSDLToSNES(event.key.keysym.sym);
                 // update emulator state
                 break;
             case SDL_KEYUP:
-                 int snesKey = mapSDLToSNES(event.key.keysym.sym);
+                 snesKey = mapSDLToSNES(event.key.keysym.sym);
                 // update emulator state
                 break;
             default:
