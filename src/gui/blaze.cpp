@@ -4,6 +4,7 @@
 #include <SDL_log.h>
 #include <SDL_render.h>
 #include <SDL_video.h>
+#include <SDL_syswm.h>
 #include <blaze/color.hpp>
 #include <map>
 
@@ -21,12 +22,19 @@
 #define SNES_KEY_L       10
 #define SNES_KEY_R       11
 
+#ifdef _WIN32
+	#include <Windows.h>
+#endif // _WIN32
 
 namespace Blaze {
 	static constexpr int defaultWindowWidth         = 800;
 	static constexpr int defaultWindowHeight        = 600;
 	static constexpr const char* defaultWindowTitle = "Blaze";
 	static constexpr Color defaultWindowColor { 0, 0, 0 };
+
+#ifdef _WIN32
+	static constexpr UINT_PTR ID_FILE_EXIT = 1;
+#endif // _WIN32
 } // namespace Blaze
 
 // Function to map SDL keycodes to SNES keys
@@ -68,6 +76,14 @@ int main(int argc, char** argv) {
 	SDL_Surface* surface;
 	SDL_Event event;
     std::map<int, bool> keyboard;
+	bool running = true;
+	SDL_SysWMinfo mainWindowInfo;
+
+#ifdef _WIN32
+	HWND win32MainWindow = nullptr;
+	HMENU mainMenu = nullptr;
+	HMENU fileMenu = nullptr;
+#endif // _WIN32
 
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to initialize SDL: %s", SDL_GetError());
@@ -82,14 +98,43 @@ int main(int argc, char** argv) {
 
 	SDL_SetWindowTitle(mainWindow, Blaze::defaultWindowTitle);
 
+	SDL_VERSION(&mainWindowInfo.version);
+	if (!SDL_GetWindowWMInfo(mainWindow, &mainWindowInfo)) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to get window handle: %s", SDL_GetError());
+		SDL_DestroyRenderer(renderer);
+		SDL_DestroyWindow(mainWindow);
+		SDL_Quit();
+		return 1;
+	}
+
+#ifdef _WIN32
+	win32MainWindow = mainWindowInfo.info.win.window;
+
+	// set up the menus
+	{
+		mainMenu = CreateMenu();
+		fileMenu = CreateMenu();
+
+		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)fileMenu, "File");
+
+		AppendMenu(fileMenu, MF_STRING, Blaze::ID_FILE_EXIT, "Exit");
+
+		SetMenu(win32MainWindow, mainMenu);
+	}
+
+	// enable Win32 events in the SDL event loop
+	SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+#endif // _WIN32
+
 	// main event loop
-	while (true) {
+	while (running) {
 		SDL_PollEvent(&event);
         int snesKey;
 
         switch (event.type) {
             case SDL_QUIT:
-                // exit if window
+                // exit if window closed
+				running = false;
                 break;
             case SDL_KEYDOWN:
                 snesKey = mapSDLToSNES(event.key.keysym.sym);
@@ -99,10 +144,28 @@ int main(int argc, char** argv) {
                  snesKey = mapSDLToSNES(event.key.keysym.sym);
                 // update emulator state
                 break;
+
+
+#ifdef _WIN32
+			case SDL_SYSWMEVENT:
+				if (event.syswm.msg->msg.win.msg == WM_COMMAND) {
+					switch (LOWORD(event.syswm.msg->msg.win.wParam)) {
+						case Blaze::ID_FILE_EXIT: {
+							running = false;
+						} break;
+					}
+				}
+				break;
+#endif // _WIN32
+
+
             default:
                 break;
         }
 
+		if (!running) {
+			break;
+		}
 
 		// clear the window
 		SDL_SetRenderDrawColor(renderer, Blaze::defaultWindowColor.r, Blaze::defaultWindowColor.g, Blaze::defaultWindowColor.b, Blaze::defaultWindowColor.a);
