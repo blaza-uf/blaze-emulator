@@ -815,6 +815,7 @@ Blaze::Cycles Blaze::CPU::executePHA() {
 	}
 	else {
 		store16(SP, A.forceLoadFull());
+		SP--;
 	}
 	SP--;
 	return 0;
@@ -822,11 +823,7 @@ Blaze::Cycles Blaze::CPU::executePHA() {
 
 Blaze::Cycles Blaze::CPU::executePHB() {
 	// TODO TO CHECK
-	if (e != 0) {
-		store8(SP, (1u << 8) | DBR);
-	} else {
-		store16(SP, DBR);
-	}
+	store8(SP, DBR);
 	SP--;
 	return 0;
 };
@@ -837,6 +834,7 @@ Blaze::Cycles Blaze::CPU::executePHD() {
 		store8(SP, DR);
 	} else {
 		store16(SP, DR);
+		SP--;
 	}
 	SP--;
 	return 0;
@@ -844,22 +842,14 @@ Blaze::Cycles Blaze::CPU::executePHD() {
 
 Blaze::Cycles Blaze::CPU::executePHK() {
 	// TODO  TO CHECK
-	if (e != 0) {
-		store8(SP, (1u << 8) | PBR);
-	} else {
-		store16(SP, PBR);
-	}
+	store8(SP, PBR);
 	SP--;
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executePHP() {
 	// TODO TO CHECK
-	if (e != 0) {
-		store8(SP, (1u << 8) | P);
-	} else {
-		store16(SP, P);
-	}
+	store8(SP, P);
 	SP--;
 	setFlag(b, 0);
 	return 0;
@@ -868,10 +858,11 @@ Blaze::Cycles Blaze::CPU::executePHP() {
 Blaze::Cycles Blaze::CPU::executePHX() {
 	// TODO TO CHECK
 	if (indexRegistersAre8Bit()) {
-		store8(SP, static_cast<Byte>(X.load()));
+		store8(SP, X.load());
 	}
 	else {
 		store16(SP, X.forceLoadFull());
+		SP--;
 	}
 	SP--;
 	return 0;
@@ -880,10 +871,11 @@ Blaze::Cycles Blaze::CPU::executePHX() {
 Blaze::Cycles Blaze::CPU::executePHY() {
 	// TODO TO CHECK
 	if (indexRegistersAre8Bit()) {
-		store8(SP, static_cast<Byte>(Y.load()));
+		store8(SP, Y.load());
 	}
 	else {
 		store16(SP, Y.forceLoadFull());
+		SP--;
 	}
 	SP--;
 	return 0;
@@ -896,6 +888,7 @@ Blaze::Cycles Blaze::CPU::executePLA() {
 		A = load8(SP);
 	}
 	else {
+		SP++;
 		A = load16(SP);
 	}
 	setZeroNegFlags(A);
@@ -905,13 +898,8 @@ Blaze::Cycles Blaze::CPU::executePLA() {
 Blaze::Cycles Blaze::CPU::executePLB() {
 	// TODO TO CHECK
 	SP++;
-	if (e != 0) {
-		DBR = load8(SP);
-		setFlag(n, (1u << 7) && DBR != 0);
-	} else {
-		DBR = static_cast<Byte>(load16(SP));
-		setFlag(n, (1u << 15) && DBR != 0);
-	}
+	DBR = load8(SP);
+	setFlag(n, (1u << 7) & DBR != 0);
 	setFlag(z, (DBR == 0));
 	return 0;
 };
@@ -921,10 +909,11 @@ Blaze::Cycles Blaze::CPU::executePLD() {
 	SP++;
 	if (e != 0) {
 		DR = load8(SP);
-		setFlag(n, (1u << 7) && DR != 0);
+		setFlag(n, (1u << 7) & DR != 0);
 	} else {
+		SP++;
 		DR = load16(SP);
-		setFlag(n, (1u << 15) && DR != 0);
+		setFlag(n, (1u << 15) & DR != 0);
 	}
 	setFlag(z, (DR == 0));
 	return 0;
@@ -933,13 +922,8 @@ Blaze::Cycles Blaze::CPU::executePLD() {
 Blaze::Cycles Blaze::CPU::executePLP() {
 	// TODO TO CHECK
 	SP++;
-	if (e != 0) {
-		P = load8(SP);
-		setFlag(n, (1u << 7) && P != 0);
-	} else {
-		P = static_cast<Byte>(load16(SP));
-		setFlag(n, (1u << 15) && P != 0);
-	}
+	P = load8(SP);
+	setFlag(n, (1u << 7) & P != 0);
 	setFlag(z, (P == 0));
 	return 0;
 };
@@ -951,6 +935,7 @@ Blaze::Cycles Blaze::CPU::executePLX() {
 		X = load8(SP);
 	}
 	else {
+		SP++;
 		X = load16(SP);
 	}
 	setZeroNegFlags(X);
@@ -964,6 +949,7 @@ Blaze::Cycles Blaze::CPU::executePLY() {
 		Y = load8(SP);
 	}
 	else {
+		SP++;
 		Y = load16(SP);
 	}
 	setZeroNegFlags(Y);
