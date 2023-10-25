@@ -809,67 +809,150 @@ Blaze::Cycles Blaze::CPU::executePER() {
 };
 
 Blaze::Cycles Blaze::CPU::executePHA() {
-	// TODO
+	// TODO TO CHECK
+	if (memoryAndAccumulatorAre8Bit()) {
+		store8(SP, A.load());
+	}
+	else {
+		store16(SP, A.forceLoadFull());
+		SP--;
+	}
+	SP--;
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executePHB() {
-	// TODO
+	// TODO TO CHECK
+	store8(SP, DBR);
+	SP--;
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executePHD() {
-	// TODO
+	// TODO TO CHECK
+	if (e != 0) {
+		store8(SP, DR);
+	} else {
+		store16(SP, DR);
+		SP--;
+	}
+	SP--;
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executePHK() {
-	// TODO
+	// TODO  TO CHECK
+	store8(SP, PBR);
+	SP--;
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executePHP() {
-	// TODO
+	// TODO TO CHECK
+	store8(SP, P);
+	SP--;
+	setFlag(b, 0);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executePHX() {
-	// TODO
+	// TODO TO CHECK
+	if (indexRegistersAre8Bit()) {
+		store8(SP, X.load());
+	}
+	else {
+		store16(SP, X.forceLoadFull());
+		SP--;
+	}
+	SP--;
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executePHY() {
-	// TODO
+	// TODO TO CHECK
+	if (indexRegistersAre8Bit()) {
+		store8(SP, Y.load());
+	}
+	else {
+		store16(SP, Y.forceLoadFull());
+		SP--;
+	}
+	SP--;
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executePLA() {
-	// TODO
+	// TODO TO CHECK
+	SP++;
+	if (memoryAndAccumulatorAre8Bit()) {
+		A = load8(SP);
+	}
+	else {
+		SP++;
+		A = load16(SP);
+	}
+	setZeroNegFlags(A);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executePLB() {
-	// TODO
+	// TODO TO CHECK
+	SP++;
+	DBR = load8(SP);
+	setFlag(n, (1u << 7) & DBR != 0);
+	setFlag(z, (DBR == 0));
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executePLD() {
-	// TODO
+	// TODO TO CHECK
+	SP++;
+	if (e != 0) {
+		DR = load8(SP);
+		setFlag(n, (1u << 7) & DR != 0);
+	} else {
+		SP++;
+		DR = load16(SP);
+		setFlag(n, (1u << 15) & DR != 0);
+	}
+	setFlag(z, (DR == 0));
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executePLP() {
-	// TODO
+	// TODO TO CHECK
+	SP++;
+	P = load8(SP);
+	setFlag(n, (1u << 7) & P != 0);
+	setFlag(z, (P == 0));
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executePLX() {
-	// TODO
+	// TODO TO CHECK
+	SP++;
+	if (indexRegistersAre8Bit()) {
+		X = load8(SP);
+	}
+	else {
+		SP++;
+		X = load16(SP);
+	}
+	setZeroNegFlags(X);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executePLY() {
-	// TODO
+	// TODO TO CHECK
+	SP++;
+	if (indexRegistersAre8Bit()) {
+		Y = load8(SP);
+	}
+	else {
+		SP++;
+		Y = load16(SP);
+	}
+	setZeroNegFlags(Y);
 	return 0;
 };
 
@@ -1126,7 +1209,6 @@ Blaze::Cycles Blaze::CPU::executeJSR(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeLDA(AddressingMode mode) {
-	// TODO TO CHECK
 	Word val = loadOperand(mode);
 	A = val;
 	setZeroNegFlags(A);
@@ -1134,7 +1216,6 @@ Blaze::Cycles Blaze::CPU::executeLDA(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeLDX(AddressingMode mode) {
-	// TODO TO CHECK
 	Word val = loadOperand(mode);
 	X = val;
 	setZeroNegFlags(X);
@@ -1142,7 +1223,6 @@ Blaze::Cycles Blaze::CPU::executeLDX(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeLDY(AddressingMode mode) {
-	// TODO TO CHECK
 	Word val = loadOperand(mode);
 	Y = val;
 	setZeroNegFlags(Y);
@@ -1245,7 +1325,14 @@ Blaze::Cycles Blaze::CPU::executeSTY(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeSTZ(AddressingMode mode) {
-	// TODO
+	// TODO TO CHECK
+	Address addr = loadOperand(mode);
+	if (memoryAndAccumulatorAre8Bit()) {
+		store8(addr, 0);
+	}
+	else {
+		store16(addr, 0);
+	}
 	return 0;
 };
 
