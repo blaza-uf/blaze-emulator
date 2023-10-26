@@ -1170,15 +1170,21 @@ Blaze::Cycles Blaze::CPU::executeCPY(AddressingMode mode) {
 
 Blaze::Cycles Blaze::CPU::executeDEC(AddressingMode mode) {
 	// TODO TO CHECK
-	Address addr = loadOperand(mode);
-	A--;
+	Address addr = decodeAddress(mode);
+	Word val;
 	if (memoryAndAccumulatorAre8Bit()) {
-		store8(addr, A.load());
+		val = load8(addr);
+		val--;
+		store8(addr, val & 0xFF);
+		setFlag(flags::n, ((val & (1u << 7)) > 0));
 	}
 	else {
-		store16(addr, A.load());
+		val = load16(addr);
+		val--;
+		store16(addr, val);
+		setFlag(flags::n, ((val & (1u << 15)) > 0));
 	}
-	setZeroNegFlags(A);
+	setFlag(flags::z, (val == 0));
 	return 0;
 };
 
@@ -1191,15 +1197,21 @@ Blaze::Cycles Blaze::CPU::executeEOR(AddressingMode mode) {
 
 Blaze::Cycles Blaze::CPU::executeINC(AddressingMode mode) {
 	// TODO TO CHECK
-	Address addr = loadOperand(mode);
-	A++;
+	Address addr = decodeAddress(mode);
+	Word val;
 	if (memoryAndAccumulatorAre8Bit()) {
-		store8(addr, A.load());
+		val = load8(addr);
+		val++;
+		store8(addr, val & 0xFF);
+		setFlag(flags::n, ((val & (1u << 7)) > 0));
 	}
 	else {
-		store16(addr, A.load());
+		val = load16(addr);
+		val++;
+		store16(addr, val);
+		setFlag(flags::n, ((val & (1u << 15)) > 0));
 	}
-	setZeroNegFlags(A);
+	setFlag(flags::z, (val == 0));
 	return 0;
 };
 
