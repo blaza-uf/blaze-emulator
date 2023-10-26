@@ -1252,7 +1252,27 @@ Blaze::Cycles Blaze::CPU::executeROR(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeSBC(AddressingMode mode) {
-	// TODO
+	// Fetch initial accumulator
+	Address left = A.load();
+
+	// Get and (bitwise) negate the operand
+	Address operand = ~(loadOperand(mode));
+
+	// Compute
+	Address res = left + operand + getCarry();
+
+	// Handle different widths
+	Address wordMask = (memoryAndAccumulatorAre8Bit() ? 0xff : 0xffff);
+	Word wordResult = result & wordMask;
+
+	// Update accumulator
+	A = wordResult;
+
+	// Set flags
+	setZeroNegFlags(A);
+	setOverflowFlag(left, operand, wordResult);
+	setFlag(flags::c, (result & ~wordMask) != 0);
+
 	return 0;
 };
 
