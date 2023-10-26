@@ -809,7 +809,6 @@ Blaze::Cycles Blaze::CPU::executePER() {
 };
 
 Blaze::Cycles Blaze::CPU::executePHA() {
-	// TODO TO CHECK
 	if (memoryAndAccumulatorAre8Bit()) {
 		store8(SP, A.load());
 	}
@@ -822,14 +821,12 @@ Blaze::Cycles Blaze::CPU::executePHA() {
 };
 
 Blaze::Cycles Blaze::CPU::executePHB() {
-	// TODO TO CHECK
 	store8(SP, DBR);
 	SP--;
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executePHD() {
-	// TODO TO CHECK
 	if (e != 0) {
 		store8(SP, DR);
 	} else {
@@ -841,14 +838,12 @@ Blaze::Cycles Blaze::CPU::executePHD() {
 };
 
 Blaze::Cycles Blaze::CPU::executePHK() {
-	// TODO  TO CHECK
 	store8(SP, PBR);
 	SP--;
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executePHP() {
-	// TODO TO CHECK
 	store8(SP, P);
 	SP--;
 	setFlag(b, 0);
@@ -856,7 +851,6 @@ Blaze::Cycles Blaze::CPU::executePHP() {
 };
 
 Blaze::Cycles Blaze::CPU::executePHX() {
-	// TODO TO CHECK
 	if (indexRegistersAre8Bit()) {
 		store8(SP, X.load());
 	}
@@ -869,7 +863,6 @@ Blaze::Cycles Blaze::CPU::executePHX() {
 };
 
 Blaze::Cycles Blaze::CPU::executePHY() {
-	// TODO TO CHECK
 	if (indexRegistersAre8Bit()) {
 		store8(SP, Y.load());
 	}
@@ -882,7 +875,6 @@ Blaze::Cycles Blaze::CPU::executePHY() {
 };
 
 Blaze::Cycles Blaze::CPU::executePLA() {
-	// TODO TO CHECK
 	SP++;
 	if (memoryAndAccumulatorAre8Bit()) {
 		A = load8(SP);
@@ -896,7 +888,6 @@ Blaze::Cycles Blaze::CPU::executePLA() {
 };
 
 Blaze::Cycles Blaze::CPU::executePLB() {
-	// TODO TO CHECK
 	SP++;
 	DBR = load8(SP);
 	setFlag(n, (1u << 7) & DBR != 0);
@@ -905,7 +896,6 @@ Blaze::Cycles Blaze::CPU::executePLB() {
 };
 
 Blaze::Cycles Blaze::CPU::executePLD() {
-	// TODO TO CHECK
 	SP++;
 	if (e != 0) {
 		DR = load8(SP);
@@ -920,7 +910,6 @@ Blaze::Cycles Blaze::CPU::executePLD() {
 };
 
 Blaze::Cycles Blaze::CPU::executePLP() {
-	// TODO TO CHECK
 	SP++;
 	P = load8(SP);
 	setFlag(n, (1u << 7) & P != 0);
@@ -929,7 +918,6 @@ Blaze::Cycles Blaze::CPU::executePLP() {
 };
 
 Blaze::Cycles Blaze::CPU::executePLX() {
-	// TODO TO CHECK
 	SP++;
 	if (indexRegistersAre8Bit()) {
 		X = load8(SP);
@@ -943,7 +931,6 @@ Blaze::Cycles Blaze::CPU::executePLX() {
 };
 
 Blaze::Cycles Blaze::CPU::executePLY() {
-	// TODO TO CHECK
 	SP++;
 	if (indexRegistersAre8Bit()) {
 		Y = load8(SP);
@@ -1182,7 +1169,16 @@ Blaze::Cycles Blaze::CPU::executeCPY(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeDEC(AddressingMode mode) {
-	// TODO
+	// TODO TO CHECK
+	Address addr = loadOperand(mode);
+	A--;
+	if (memoryAndAccumulatorAre8Bit()) {
+		store8(addr, A.load());
+	}
+	else {
+		store16(addr, A.load());
+	}
+	setZeroNegFlags(A);
 	return 0;
 };
 
@@ -1194,7 +1190,16 @@ Blaze::Cycles Blaze::CPU::executeEOR(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeINC(AddressingMode mode) {
-	// TODO
+	// TODO TO CHECK
+	Address addr = loadOperand(mode);
+	A++;
+	if (memoryAndAccumulatorAre8Bit()) {
+		store8(addr, A.load());
+	}
+	else {
+		store16(addr, A.load());
+	}
+	setZeroNegFlags(A);
 	return 0;
 };
 
@@ -1325,7 +1330,6 @@ Blaze::Cycles Blaze::CPU::executeSTY(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeSTZ(AddressingMode mode) {
-	// TODO TO CHECK
 	Address addr = loadOperand(mode);
 	if (memoryAndAccumulatorAre8Bit()) {
 		store8(addr, 0);
