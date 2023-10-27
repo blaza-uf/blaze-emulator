@@ -1276,7 +1276,7 @@ Blaze::Cycles Blaze::CPU::executeSBC(AddressingMode mode) {
 	Address operand = ~(loadOperand(mode));
 
 	// Compute
-	Address res = left + operand + getCarry();
+	Address result = left + operand + getCarry();
 
 	// Handle different widths
 	Address wordMask = (memoryAndAccumulatorAre8Bit() ? 0xff : 0xffff);
