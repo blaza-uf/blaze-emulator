@@ -944,7 +944,13 @@ Blaze::Cycles Blaze::CPU::executePLY() {
 };
 
 Blaze::Cycles Blaze::CPU::executeREP() {
-	// TODO
+	// TODO TO CHECK
+	Word val = load16(PC + 1);
+	P &= (~val & 0x00ff);
+	if (e != 0) {
+		setFlag(x, true);
+		setFlag(m, true);
+	}
 	return 0;
 };
 
@@ -979,7 +985,9 @@ Blaze::Cycles Blaze::CPU::executeSEI() {
 };
 
 Blaze::Cycles Blaze::CPU::executeSEP() {
-	// TODO
+	// TODO TO CHECK
+	Word val = load16(PC + 1);
+	P |= (val & 0x00ff);
 	return 0;
 };
 
@@ -1169,7 +1177,6 @@ Blaze::Cycles Blaze::CPU::executeCPY(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeDEC(AddressingMode mode) {
-	// TODO TO CHECK
 	Address addr = decodeAddress(mode);
 	Word val;
 	if (memoryAndAccumulatorAre8Bit()) {
@@ -1196,7 +1203,6 @@ Blaze::Cycles Blaze::CPU::executeEOR(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeINC(AddressingMode mode) {
-	// TODO TO CHECK
 	Address addr = decodeAddress(mode);
 	Word val;
 	if (memoryAndAccumulatorAre8Bit()) {
