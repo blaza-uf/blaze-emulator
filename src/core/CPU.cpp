@@ -1253,7 +1253,23 @@ Blaze::Cycles Blaze::CPU::executeLDY(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeLSR(AddressingMode mode) {
-	// TODO
+	Address addr = decodeAddress(mode);
+	Word data = memoryAndAccumulatorAre8Bit() ? load8(addr) : load16(addr);
+	
+	if (memoryAndAccumulatorAre8Bit()) {
+  		setFlag(c, data & 0x01);
+	} else {
+  		setFlag(c, data & 0x0001); 
+	}
+	
+	data >>= 1;
+	
+	if (memoryAndAccumulatorAre8Bit()) {
+  		store8(addr, data);
+	} else {
+  		store16(addr, data);
+	}
+	
 	return 0;
 };
 
@@ -1265,12 +1281,46 @@ Blaze::Cycles Blaze::CPU::executeORA(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeROL(AddressingMode mode) {
-	// TODO
+	Address addr = decodeAddress(mode);
+	Word data = memoryAndAccumulatorAre8Bit() ? load8(addr) : load16(addr);
+	Byte carry = getCarry();
+	
+	if (memoryAndAccumulatorAre8Bit()) {
+  		setFlag(c, data & 0x80); //set c to most significant bit of data
+	} else {
+  		setFlag(c, data & 0x8000); 
+	}
+	
+	data = (data << 1) | carry; // shift carry to least significant bit of 'data'
+	
+	
+	if (memoryAndAccumulatorAre8Bit()) {
+  		store8(addr, data);
+	} else {
+  		store16(addr, data);
+	}
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeROR(AddressingMode mode) {
-	// TODO
+	Address addr = decodeAddress(mode);
+	Word data = memoryAndAccumulatorAre8Bit() ? load8(addr) : load16(addr);
+	Byte carry = getCarry();
+	
+	if (memoryAndAccumulatorAre8Bit()) {
+  		setFlag(c, data & 0x01);
+	} else {
+  		setFlag(c, data & 0x0001);
+	}
+	
+	data = (data >> 1) | carry;
+	
+	
+	if (memoryAndAccumulatorAre8Bit()) {
+  		store8(addr, data);
+	} else {
+  		store16(addr, data);
+	}
 	return 0;
 };
 
