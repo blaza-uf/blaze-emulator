@@ -7,6 +7,8 @@
 #include <SDL_syswm.h>
 #include <blaze/color.hpp>
 #include <map>
+#include <string>
+#include <sstream>
 
 // Define SNES key constants
 #define SNES_KEY_UP      0
@@ -24,6 +26,7 @@
 
 #ifdef _WIN32
 	#include <windows.h>
+	#include <shobjidl.h>
 #endif // _WIN32
 
 namespace Blaze {
@@ -33,7 +36,14 @@ namespace Blaze {
 	static constexpr Color defaultWindowColor { 0, 0, 0 };
 
 #ifdef _WIN32
-	static constexpr UINT_PTR ID_FILE_EXIT = 1;
+	enum MenuID: UINT_PTR {
+		FileExit = 1,
+		FileOpen = 2,
+		FileClose = 3,
+		EditOptions = 4,
+		ViewShowDebugger = 5,
+		HelpHelp = 6,
+	};
 #endif // _WIN32
 } // namespace Blaze
 
@@ -70,6 +80,76 @@ int mapSDLToSNES(SDL_Keycode sdlKey) {
     }
 }
 
+static bool openROMDialog(std::string& outPath) {
+	HRESULT hr;
+	IFileDialog* fileDialog = nullptr;
+	IShellItem* item = nullptr;
+	LPWSTR filePath = nullptr;
+	int requiredChars = 0;
+	int writtenChars = 0;
+
+	hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+	if (!SUCCEEDED(hr)) {
+		return false;
+	}
+
+	hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&fileDialog));
+	if (!SUCCEEDED(hr)) {
+		CoUninitialize();
+		return false;
+	}
+
+	hr = fileDialog->Show(nullptr);
+	if (!SUCCEEDED(hr)) {
+		fileDialog->Release();
+		CoUninitialize();
+		return false;
+	}
+
+	hr = fileDialog->GetResult(&item);
+	if (!SUCCEEDED(hr)) {
+		fileDialog->Release();
+		CoUninitialize();
+		return false;
+	}
+
+	hr = item->GetDisplayName(SIGDN_FILESYSPATH, &filePath);
+	if (!SUCCEEDED(hr)) {
+		item->Release();
+		fileDialog->Release();
+		CoUninitialize();
+		return false;
+	}
+
+	requiredChars = WideCharToMultiByte(CP_UTF8, 0, filePath, -1, nullptr, 0, nullptr, nullptr);
+	if (requiredChars == 0) {
+		CoTaskMemFree(filePath);
+		item->Release();
+		fileDialog->Release();
+		CoUninitialize();
+		return false;
+	}
+
+	outPath.resize(requiredChars);
+
+	writtenChars = WideCharToMultiByte(CP_UTF8, 0, filePath, -1, outPath.data(), requiredChars, nullptr, nullptr);
+	if (writtenChars == 0) {
+		CoTaskMemFree(filePath);
+		item->Release();
+		fileDialog->Release();
+		CoUninitialize();
+		return false;
+	}
+
+	outPath.resize(writtenChars);
+
+	CoTaskMemFree(filePath);
+	item->Release();
+	fileDialog->Release();
+	CoUninitialize();
+	return true;
+};
+
 int main(int argc, char** argv) {
 	SDL_Window* mainWindow;
 	SDL_Renderer* renderer;
@@ -83,6 +163,9 @@ int main(int argc, char** argv) {
 	HWND win32MainWindow = nullptr;
 	HMENU mainMenu = nullptr;
 	HMENU fileMenu = nullptr;
+	HMENU editMenu = nullptr;
+	HMENU viewMenu = nullptr;
+	HMENU helpMenu = nullptr;
 #endif // _WIN32
 
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -114,10 +197,27 @@ int main(int argc, char** argv) {
 	{
 		mainMenu = CreateMenu();
 		fileMenu = CreateMenu();
+		editMenu = CreateMenu();
+		viewMenu = CreateMenu();
+		helpMenu = CreateMenu();
 
 		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)fileMenu, "File");
 
-		AppendMenu(fileMenu, MF_STRING, Blaze::ID_FILE_EXIT, "Exit");
+		AppendMenu(fileMenu, MF_STRING, Blaze::MenuID::FileOpen, "Open ROM");
+		AppendMenu(fileMenu, MF_STRING, Blaze::MenuID::FileClose, "Close ROM");
+		AppendMenu(fileMenu, MF_STRING, Blaze::MenuID::FileExit, "Exit");
+
+		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)editMenu, "Edit");
+
+		AppendMenu(editMenu, MF_STRING, Blaze::MenuID::EditOptions, "Options");
+
+		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)viewMenu, "View");
+
+		AppendMenu(viewMenu, MF_STRING, Blaze::MenuID::ViewShowDebugger, "Show Debugger");
+
+		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)helpMenu, "Help");
+
+		AppendMenu(helpMenu, MF_STRING, Blaze::MenuID::HelpHelp, "Help");
 
 		SetMenu(win32MainWindow, mainMenu);
 	}
@@ -149,9 +249,42 @@ int main(int argc, char** argv) {
 #ifdef _WIN32
 			case SDL_SYSWMEVENT:
 				if (event.syswm.msg->msg.win.msg == WM_COMMAND) {
-					switch (LOWORD(event.syswm.msg->msg.win.wParam)) {
-						case Blaze::ID_FILE_EXIT: {
+					switch (static_cast<Blaze::MenuID>(LOWORD(event.syswm.msg->msg.win.wParam))) {
+						case Blaze::MenuID::FileOpen: {
+							std::string path;
+							std::stringstream output;
+
+							if (openROMDialog(path)) {
+								output << "Got ROM: " << path;
+							} else {
+								output << "Failed to open ROM selection dialog";
+							}
+
+							OutputDebugStringA(output.str().c_str());
+						} break;
+
+						case Blaze::MenuID::FileClose: {
+							// TODO
+						} break;
+
+						case Blaze::MenuID::FileExit: {
 							running = false;
+						} break;
+
+						case Blaze::MenuID::EditOptions: {
+							// TODO
+						} break;
+
+						case Blaze::MenuID::ViewShowDebugger: {
+							// TODO
+						} break;
+
+						case Blaze::MenuID::HelpHelp: {
+							// TODO
+						} break;
+
+						default: {
+							// what to do here?
 						} break;
 					}
 				}
