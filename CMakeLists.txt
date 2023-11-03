@@ -53,3 +53,9 @@ target_link_libraries(blaze-core-tests PRIVATE blaze-core Catch2::Catch2WithMain
 include(CTest)
 include(Catch)
 catch_discover_tests(blaze-core-tests)
+
+set_target_properties(blaze-core blaze blaze-core-tests PROPERTIES
+	CXX_STANDARD 17
+	CXX_STANDARD_REQUIRED ON
+	CXX_EXTENSIONS OFF
+)

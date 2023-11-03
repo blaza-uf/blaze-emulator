@@ -80,6 +80,7 @@ int mapSDLToSNES(SDL_Keycode sdlKey) {
     }
 }
 
+#ifdef _WIN32
 static bool openROMDialog(std::string& outPath) {
 	HRESULT hr;
 	IFileDialog* fileDialog = nullptr;
@@ -149,6 +150,7 @@ static bool openROMDialog(std::string& outPath) {
 	CoUninitialize();
 	return true;
 };
+#endif
 
 int main(int argc, char** argv) {
 	SDL_Window* mainWindow;
@@ -244,7 +246,6 @@ int main(int argc, char** argv) {
                  snesKey = mapSDLToSNES(event.key.keysym.sym);
                 // update emulator state
                 break;
-
 
 #ifdef _WIN32
 			case SDL_SYSWMEVENT:
