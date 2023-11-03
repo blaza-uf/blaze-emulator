@@ -114,7 +114,7 @@ static constexpr void split24(uint32_t val, uint8_t& hi, uint16_t& lo) {
 };
 
 static constexpr void split24(uint32_t val, uint8_t hi, uint8_t mid, uint8_t lo) {
-	uint16_t tmp;
+	uint16_t tmp = 0;
 	split24(val, hi, tmp);
 	split16(tmp, mid, lo);
 };
