@@ -1151,7 +1151,19 @@ Blaze::Cycles Blaze::CPU::executeWDM() {
 };
 
 Blaze::Cycles Blaze::CPU::executeXBA() {
-	// TODO
+	// get high and low bytes
+	Word high_mask = A & 0xFF00;
+	Word low_mask = A & 0x00FF;
+
+	// Swap
+	high_mask = (high_mask >> 8);
+	low_mask = (low_mask << 8)
+
+	// Store in A
+	A = 0xFF00
+	A = A & low_mask;
+	A = A | high_mask;
+
 	return 0;
 };
 
