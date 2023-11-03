@@ -1127,6 +1127,7 @@ Blaze::Cycles Blaze::CPU::executeTYX() {
 };
 
 Blaze::Cycles Blaze::CPU::executeWAI() {
+#if 0
 	// wait until there is an interrupt
 	while(true)
 	{
@@ -1143,6 +1144,7 @@ Blaze::Cycles Blaze::CPU::executeWAI() {
 			}
 		}
 	}
+#endif
 	return 0;
 };
 
