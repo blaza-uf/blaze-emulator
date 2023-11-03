@@ -812,8 +812,8 @@ Blaze::Cycles Blaze::CPU::executePHA() {
 		store8(SP, A.load());
 	}
 	else {
-		store16(SP, A.forceLoadFull());
 		SP--;
+		store16(SP, A.forceLoadFull());
 	}
 	SP--;
 	return 0;
@@ -829,8 +829,8 @@ Blaze::Cycles Blaze::CPU::executePHD() {
 	if (e != 0) {
 		store8(SP, DR);
 	} else {
-		store16(SP, DR);
 		SP--;
+		store16(SP, DR);
 	}
 	SP--;
 	return 0;
@@ -854,8 +854,8 @@ Blaze::Cycles Blaze::CPU::executePHX() {
 		store8(SP, X.load());
 	}
 	else {
-		store16(SP, X.forceLoadFull());
 		SP--;
+		store16(SP, X.forceLoadFull());
 	}
 	SP--;
 	return 0;
@@ -866,8 +866,8 @@ Blaze::Cycles Blaze::CPU::executePHY() {
 		store8(SP, Y.load());
 	}
 	else {
-		store16(SP, Y.forceLoadFull());
 		SP--;
+		store16(SP, Y.forceLoadFull());
 	}
 	SP--;
 	return 0;
@@ -879,8 +879,8 @@ Blaze::Cycles Blaze::CPU::executePLA() {
 		A = load8(SP);
 	}
 	else {
-		SP++;
 		A = load16(SP);
+		SP++;
 	}
 	setZeroNegFlags(A);
 	return 0;
@@ -900,8 +900,8 @@ Blaze::Cycles Blaze::CPU::executePLD() {
 		DR = load8(SP);
 		setFlag(n, (1u << 7) & DR != 0);
 	} else {
-		SP++;
 		DR = load16(SP);
+		SP++;
 		setFlag(n, (1u << 15) & DR != 0);
 	}
 	setFlag(z, (DR == 0));
@@ -926,8 +926,8 @@ Blaze::Cycles Blaze::CPU::executePLX() {
 		X = load8(SP);
 	}
 	else {
-		SP++;
 		X = load16(SP);
+		SP++;
 	}
 	setZeroNegFlags(X);
 	return 0;
@@ -939,8 +939,8 @@ Blaze::Cycles Blaze::CPU::executePLY() {
 		Y = load8(SP);
 	}
 	else {
-		SP++;
 		Y = load16(SP);
+		SP++;
 	}
 	setZeroNegFlags(Y);
 	return 0;
