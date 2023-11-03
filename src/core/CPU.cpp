@@ -1039,7 +1039,11 @@ Blaze::Cycles Blaze::CPU::executeSEP() {
 };
 
 Blaze::Cycles Blaze::CPU::executeSTP() {
-	// TODO
+	// Do nothing until there is an interrup
+	while(true)
+	{
+		// Check for interrupt
+	}
 	return 0;
 };
 
@@ -1123,7 +1127,22 @@ Blaze::Cycles Blaze::CPU::executeTYX() {
 };
 
 Blaze::Cycles Blaze::CPU::executeWAI() {
-	// TODO
+	// wait until there is an interrupt
+	while(true)
+	{
+		// Interrupt mask is set: continue with next instruction and then interrupt
+		if()//There is an interrupt
+		{
+			if(flags::i)
+			{
+				// launch next instruction before going to interrupt
+			}
+			else
+			{
+			
+			}
+		}
+	}
 	return 0;
 };
 
@@ -1170,7 +1189,7 @@ Blaze::Cycles Blaze::CPU::executeASL(AddressingMode mode) {
 	Address mem_or_A = loadOperand(mode);
 
 	// Set carry flag if current left bit is 1
-	setFlag(flags::c, (mem_or_A >> 7));
+	setFlag(flags::c, mostSignificantBit());
 
 	// Shift
 	mem_or_A << 1;
