@@ -59,3 +59,9 @@ set_target_properties(blaze-core blaze blaze-core-tests PROPERTIES
 	CXX_STANDARD_REQUIRED ON
 	CXX_EXTENSIONS OFF
 )
+
+option(BUILD_SAMPLES "Build SNES ROM samples" OFF)
+
+if (BUILD_SAMPLES)
+	add_subdirectory(samples)
+endif()
