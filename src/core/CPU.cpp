@@ -102,6 +102,22 @@ static constexpr uint32_t concat24(uint8_t hi, uint16_t lo) {
 static constexpr uint32_t concat24(uint8_t hi, uint8_t mid, uint8_t lo) {
 	return concat24(hi, concat16(mid, lo));
 };
+
+static constexpr void split16(uint16_t val, uint8_t& hi, uint8_t& lo) {
+	hi = static_cast<uint8_t>((val >> 8) & 0xff);
+	lo = static_cast<uint8_t>(val & 0xff);
+};
+
+static constexpr void split24(uint32_t val, uint8_t& hi, uint16_t& lo) {
+	hi = static_cast<uint8_t>((val >> 16) & 0xff);
+	lo = static_cast<uint16_t>(val & 0xffff);
+};
+
+static constexpr void split24(uint32_t val, uint8_t hi, uint8_t mid, uint8_t lo) {
+	uint16_t tmp;
+	split24(val, hi, tmp);
+	split16(tmp, mid, lo);
+};
 // NOLINTEND(readability-magic-numbers, readability-identifier-length)
 
 void Blaze::CPU::reset(MemRam &memory) {
@@ -772,7 +788,19 @@ Blaze::Cycles Blaze::CPU::executeJML() {
 };
 
 Blaze::Cycles Blaze::CPU::executeJSL() {
-	// TODO
+	Address newPC = decodeAddress(AddressingMode::AbsoluteLong);
+	// add 4 to skip over this instruction, subtract 1 because it's required
+	Address pcToStore = concat24(PBR, (PC + 4) - 1);
+
+	SP -= 2;
+	store24(SP, pcToStore);
+	--SP;
+
+	split24(newPC, PBR, PC);
+
+	// subtract the size of this JSL instruction from PC because it's automatically added by `execute()` before executing the next instruction
+	PC -= 4;
+
 	return 0;
 };
 
@@ -962,12 +990,30 @@ Blaze::Cycles Blaze::CPU::executeRTI() {
 };
 
 Blaze::Cycles Blaze::CPU::executeRTL() {
-	// TODO
+	++SP;
+	Address newPC = load24(SP);
+	SP += 2;
+
+	split24(newPC, PBR, PC);
+	++PC; // add 1 to account for the `- 1` when storing the PC (it's required)
+
+	// subtract the size of this RTL instruction from PC because it's automatically added by `execute()` before executing the next instruction
+	--PC;
+
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeRTS() {
-	// TODO
+	++SP;
+	Address newPC = load16(SP);
+	++SP;
+
+	// add 1 to account for the `- 1` when storing the PC (it's required)
+	PC = newPC + 1;
+
+	// subtract the size of this RTS instruction from PC because it's automatically added by `execute()` before executing the next instruction
+	--PC;
+
 	return 0;
 };
 
@@ -1242,7 +1288,19 @@ Blaze::Cycles Blaze::CPU::executeJMP(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeJSR(AddressingMode mode) {
-	// TODO
+	Address newPC = decodeAddress(mode);
+	// add 3 to skip over this instruction, subtract 1 because it's required
+	Word pcToStore = (PC + 3) - 1;
+
+	--SP;
+	store16(SP, pcToStore);
+	--SP;
+
+	PC = newPC;
+
+	// subtract the size of this JSR instruction from PC because it's automatically added by `execute()` before executing the next instruction
+	PC -= 3;
+
 	return 0;
 };
 
