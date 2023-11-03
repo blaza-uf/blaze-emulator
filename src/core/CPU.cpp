@@ -1120,7 +1120,18 @@ Blaze::Cycles Blaze::CPU::executeAND(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeASL(AddressingMode mode) {
-	// TODO
+	// Get byte to shift
+	Address mem_or_A = loadOperand(mode);
+
+	// Set carry flag if current left bit is 1
+	setFlag(flags::c, (mem_or_A >> 7));
+
+	// Shift
+	mem_or_A << 1;
+
+	// Set rest of flags
+	setZeroNegFlags(A);
+	
 	return 0;
 };
 
