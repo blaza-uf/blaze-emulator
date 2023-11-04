@@ -1526,12 +1526,40 @@ Blaze::Cycles Blaze::CPU::executeSTZ(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeTRB(AddressingMode mode) {
-	// TODO
+	Address addr = decodeAddress(mode);
+	Word val;
+	if (memoryAndAccumulatorAre8Bit()) {
+		val = load8(addr);
+		val &= ~A;
+		store8(addr, val & 0xFF);
+	}
+	else {
+		val = load16(addr);
+		val &= ~A;
+		store16(addr, val);
+	}
+	if ((val & A) == 0) {
+		setFlag(flags::z, true);
+	}
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeTSB(AddressingMode mode) {
-	// TODO
+	Address addr = decodeAddress(mode);
+	Word val;
+	if (memoryAndAccumulatorAre8Bit()) {
+		val = load8(addr);
+		val |= A;
+		store8(addr, val & 0xFF);
+	}
+	else {
+		val = load16(addr);
+		val |= A;
+		store16(addr, val);
+	}
+	if ((val & A) == 0) {
+		setFlag(flags::z, true);
+	}
 	return 0;
 };
 
