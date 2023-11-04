@@ -1154,16 +1154,26 @@ Blaze::Cycles Blaze::CPU::executeXBA() {
 };
 
 Blaze::Cycles Blaze::CPU::executeXCE() {
-	// If in emulation mode -> switch to native
+	// Swap values of e and c flags
+	Byte temp_c = c;
+	setFlag(flags::c, e);
+	e = temp_c;
+
+	// If switched to emulation mode
 	if(e)
 	{
+		// Force m and x to 1
+		setFlag(flags::m, e);
+		setFlag(flags::x, e);
 
+		// XH and YH are forced to $00
+		X = (X & 0x00FF);
+		Y = (Y & 0x00FF);
+
+		// SH is forced to $01
+		SP = (SP & 0x0FFF);
 	}
-	// Otherwise switch to emulation mode
-	else
-	{
-		
-	}
+
 	return 0;
 };
 
