@@ -1138,17 +1138,15 @@ Blaze::Cycles Blaze::CPU::executeWDM() {
 
 Blaze::Cycles Blaze::CPU::executeXBA() {
 	// get high and low bytes
-	Word high_mask = A & 0xFF00;
-	Word low_mask = A & 0x00FF;
+	Word high_mask = A.forceLoadFull() & 0xFF00;
+	Word low_mask = A.forceLoadFull() & 0x00FF;
 
 	// Swap
 	high_mask = (high_mask >> 8);
-	low_mask = (low_mask << 8)
+	low_mask = (low_mask << 8);
 
 	// Store in A
-	A = 0xFF00
-	A = A & low_mask;
-	A = A | high_mask;
+	A.forceStoreFull(low_mask | high_mask);
 
 	return 0;
 };
@@ -1203,16 +1201,38 @@ Blaze::Cycles Blaze::CPU::executeAND(AddressingMode mode) {
 
 Blaze::Cycles Blaze::CPU::executeASL(AddressingMode mode) {
 	// Get byte to shift
-	Address mem_or_A = loadOperand(mode);
+	Address addr = decodeAddress(mode);
+
+	Word val;
+
+	if (mode == AddressingMode::Accumulator) {
+		val = A.load();
+	} else if (memoryAndAccumulatorAre8Bit()) {
+		val = load8(addr);
+	} else {
+		val = load16(addr);
+	}
 
 	// Set carry flag if current left bit is 1
-	setFlag(flags::c, mostSignificantBit());
+	setFlag(flags::c, (memoryAndAccumulatorAre8Bit() ? (val & 0x80) : (val & 0x8000)) != 0);
 
 	// Shift
-	mem_or_A << 1;
+	val <<= 1;
 
-	// Set rest of flags
-	setZeroNegFlags(A);
+	if (mode == AddressingMode::Accumulator) {
+		A.store(val);
+	} else if (memoryAndAccumulatorAre8Bit()) {
+		store8(addr, val);
+	} else {
+		store16(addr, val);
+	}
+
+	setFlag(flags::z, val == 0);
+	if (memoryAndAccumulatorAre8Bit()) {
+		setFlag(flags::n, (val & 0x80) != 0);
+	} else {
+		setFlag(flags::n, (val & 0x8000) != 0);
+	}
 	
 	return 0;
 };
