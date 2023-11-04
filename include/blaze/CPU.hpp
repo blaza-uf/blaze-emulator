@@ -157,8 +157,8 @@ namespace Blaze {
 			AddressingMode::Accumulator,
 			AddressingMode::Absolute,
 			AddressingMode::INVALID,
-			AddressingMode::DirectIndexedX,
 			AddressingMode::INVALID,
+			AddressingMode::DirectIndexedX,
 			AddressingMode::AbsoluteIndexedX,
 		};
 
@@ -185,8 +185,8 @@ namespace Blaze {
 			AddressingMode::INVALID,
 			AddressingMode::Absolute,
 			AddressingMode::INVALID,
-			AddressingMode::DirectIndexedX,
 			AddressingMode::INVALID,
+			AddressingMode::DirectIndexedX,
 			AddressingMode::AbsoluteIndexedX,
 		};
 
@@ -202,146 +202,10 @@ namespace Blaze {
 		// Group 3 instructions with this address mode are actually branch instructions with a condition
 		static constexpr Byte GROUP3_CONDITION_ADDRESS_MODE = 4;
 
-		enum class Opcode: Byte {
-			BRK,
-			BRL,
-			CLC,
-			CLD,
-			CLI,
-			CLV,
-			COP,
-			DEX,
-			DEY,
-			INX,
-			INY,
-			JML,
-			JSL,
-			MVN,
-			MVP,
-			NOP,
-			PEA,
-			PEI,
-			PER,
-			PHA,
-			PHB,
-			PHD,
-			PHK,
-			PHP,
-			PHX,
-			PHY,
-			PLA,
-			PLB,
-			PLD,
-			PLP,
-			PLX,
-			PLY,
-			REP,
-			RTI,
-			RTL,
-			RTS,
-			SEC,
-			SED,
-			SEI,
-			SEP,
-			STP,
-			TAX,
-			TAY,
-			TCD,
-			TCS,
-			TDC,
-			TSC,
-			TSX,
-			TXA,
-			TXS,
-			TXY,
-			TYA,
-			TYX,
-			WAI,
-			WDM,
-			XBA,
-			XCE,
-
-			ADC,
-			AND,
-			ASL,
-			BIT,
-			CMP,
-			CPX,
-			CPY,
-			DEC,
-			EOR,
-			INC,
-			JMP,
-			JSR,
-			LDA,
-			LDX,
-			LDY,
-			LSR,
-			ORA,
-			ROL,
-			ROR,
-			SBC,
-			STA,
-			STX,
-			STY,
-			STZ,
-			TRB,
-			TSB,
-
-			BRA,
-
-			INVALID = std::numeric_limits<Byte>::max(),
-		};
-
-		struct Instruction {
-			Opcode opcode = Opcode::INVALID;
-			Byte size = 0;
-
-			// Only valid for some opcodes
-			AddressingMode addressingMode = AddressingMode::INVALID;
-
-			// Only for `BRA`
-			ConditionCode condition = ConditionCode::NONE;
-
-			// Only for `BRA`
-			bool passConditionIfBitSet = false;
-
-			// For some instructions, this is not known ahead of time (before execution).
-			// For such instructions, leave this as 0.
-			Cycles cycles = 0;
-
-			// This default constructor produces an invalid instruction (i.e. one for which the `valid` method returns `false`).
-			constexpr Instruction() = default;
-
-			constexpr Instruction(Opcode opcode, Byte size, Cycles cycles, AddressingMode addressingMode = AddressingMode::INVALID):
-				opcode(opcode),
-				size(size),
-				addressingMode(addressingMode),
-				cycles(cycles)
-				{};
-
-			constexpr Instruction(Opcode opcode, Byte size, Cycles cycles, ConditionCode condition, bool passConditionIfBitSet):
-				opcode(opcode),
-				size(size),
-				condition(condition),
-				passConditionIfBitSet(passConditionIfBitSet),
-				cycles(cycles)
-				{};
-
-			inline bool valid() const {
-				return opcode != Opcode::INVALID && size > 0;
-			};
-
-			inline bool hasFixedCycleCount() const {
-				return cycles > 0;
-			};
-
-			inline operator bool() const {
-				return valid();
-			};
-		};
-
-		static const std::unordered_map<Byte, Instruction> INSTRUCTIONS_WITH_NO_PATTERN;
+		static const std::unordered_map<Byte, Cycles(CPU::*)()> SINGLE_BYTE_INSTRUCTIONS;
+		static const std::unordered_map<Byte, std::pair<Cycles(CPU::*)(AddressingMode), Blaze::CPU::AddressingMode>> SINGLE_BYTE_INSTRUCTIONS_WITH_MODE;
+		static const std::unordered_map<Byte, std::pair<Byte, Cycles(CPU::*)()>> SPECIAL_MULTI_BYTE_INSTRUCTIONS;
+		static const std::unordered_map<Byte, std::tuple<Byte, Cycles(CPU::*)(AddressingMode), Blaze::CPU::AddressingMode>> SPECIAL_MULTI_BYTE_INSTRUCTIONS_WITH_MODE;
 
 		enum flags: Byte {
 			// Process Status Flags
@@ -354,69 +218,14 @@ namespace Blaze {
 			m = (1 << 5), // accumulator & memory width
 			v = (1 << 6), // overflow
 			n = (1 << 7), // negative
-		};
-
-		class Register {
-		private:
-			Word _value = 0;
-			flags& _flags;
-			flags _mask;
-
-		public:
-			Register(flags& cpuFlags, flags eightBitMask):
-				_flags(cpuFlags),
-				_mask(eightBitMask)
-				{};
-
-			bool using8BitMode() const;
-
-			void reset();
-
-			Word load() const;
-			void store(Word value);
-
-			Word forceLoadFull() const;
-			void forceStoreFull(Word value);
-
-			bool mostSignificantBit() const;
-
-			Register& operator+=(Word rhs);
-			Register& operator-=(Word rhs);
-			Register& operator*=(Word rhs);
-			Register& operator/=(Word rhs);
-			Register& operator&=(Word rhs);
-			Register& operator|=(Word rhs);
-			Register& operator^=(Word rhs);
-
-			Register& operator++();
-			Register& operator++(int);
-			Register& operator--();
-			Register& operator--(int);
-
-			Register& operator=(Word rhs);
-
-			bool operator==(Word rhs) const;
-			bool operator!=(Word rhs) const;
-			bool operator>=(Word rhs) const;
-			bool operator<=(Word rhs) const;
-
-			Word operator+(Word rhs) const;
-			Word operator-(Word rhs) const;
-			Word operator*(Word rhs) const;
-			Word operator/(Word rhs) const;
-			Word operator&(Word rhs) const;
-			Word operator|(Word rhs) const;
-			Word operator^(Word rhs) const;
-		};
-
-		flags f;
+		} ; flags f;
 
 		Byte e = 1; //emulation mode. separate from p register flags
 
-		Register A; // accumulator
+		Word A; // accumulator
 		Word DR; // direct
 		Word PC; // program counter
-		Register X, Y; // index registers
+		Word X, Y; // index registers
 		Word SP; // stack pointer
 		Byte DBR; // data bank
 		Byte PBR; // program bank
@@ -426,34 +235,16 @@ namespace Blaze {
 		// System Bus
 		Bus *bus = nullptr;
 
-		Byte load8(Address address) const;
 		Byte load8(Byte bank, Word addressLow) const;
-		Word load16(Address address) const;
 		Word load16(Byte bank, Word addressLow) const;
-		Address load24(Address address) const;
 		Address load24(Byte bank, Word addressLow) const;
-
-		void store8(Address address, Byte value);
-		void store8(Byte bank, Word addressLow, Byte value);
-		void store16(Address address, Word value);
-		void store16(Byte bank, Word addressLow, Word value);
-		void store24(Address address, Address value);
-		void store24(Byte bank, Word addressLow, Address value);
 
 		// this function is meant to be called by instruction execution functions to obtain the address
 		// of the operand with the given addressing mode.
 		Address decodeAddress(AddressingMode addressingMode) const;
 
-		// this function is meant to be used by simple instructions that only need to load data from the
-		// memory operands (which is true for most instructions). if you need to both read from and write to
-		// a memory operand, you should use `decodeAddress` + `load16` instead.
-		Word loadOperand(AddressingMode addressingMode) const;
-
-		// decodes the current instruction based on the given opcode, returning the decoded instruction information
-		Instruction decodeInstruction(Byte opcode) const;
-
-		// executes the current (pre-decoded) instruction with the given information
-		Cycles executeInstruction(const Instruction& info);
+		// executes the current instruction, stores the size of the instruction in `outInstructionSize`, and returns the number of cycles the instruction took
+		Cycles executeInstruction(Byte& outInstructionSize);
 
 		Cycles invalidInstruction();
 
@@ -546,44 +337,12 @@ namespace Blaze {
 
 		Cycles executeBRA(ConditionCode condition, bool passConditionIfBitSet);
 
-		CPU():
-			A(f, flags::m),
-			X(f, flags::x),
-			Y(f, flags::x)
-			{};
-
 		void reset(MemRam &memory);      		// Reset CPU internal state
-		void execute(); 		// Execute the current instruction
-		void clock();                    		// CPU driver
+		void execute();							// Execute the current instruction
 		Byte read(Address addr);				// Read from the Bus
 		void write(Address addr, Byte data);	// Write to the Bus
 
-		// Interrupt Handling
-		Cycles cyclesCountDown = 0;					// Counts how many cycles the instruction has remaining
-		ClockTicks clockCount = 0;					// A global accumulation of the number of clocks
-		Address addrAbs = 0x00000000;				// The address from last visit
-		void irq();
-		void nmi();
-		void abort();
-
-		bool getFlag(flags f) const;
+		bool getFlag(flags f);
 		void setFlag(flags f, bool s);
-
-		Byte getCarry() const {
-			return getFlag(flags::c) ? 1 : 0;
-		};
-
-		void setZeroNegFlags(const Register& reg);
-		// this is only used for ADC and SBC
-		void setOverflowFlag(Word leftOperand, Word rightOperand, Word result);
-
-		// just a convenience method to make it more clear what we're checking for
-		bool memoryAndAccumulatorAre8Bit() const {
-			return getFlag(flags::m);
-		};
-
-		bool indexRegistersAre8Bit() const {
-			return getFlag(flags::x);
-		};
 	};
 } // namespace Blaze
