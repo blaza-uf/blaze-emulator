@@ -1562,7 +1562,80 @@ Blaze::Cycles Blaze::CPU::executeTSB(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeBRA(ConditionCode condition, bool passConditionIfBitSet) {
-	// TODO
+	// Get the offset if condition and bit are met
+	Byte offset = decodeAddress(AddressingMode::ProgramCounterRelative)
+
+	// Check the correct bit based on condition
+	if(condition == ConditionCode::Carry)
+	{
+		// BCS
+		if(passConditionIfBitSet)
+		{
+			// Check the carry bit
+			if(getFlag(flags::c))
+			{  
+				// Increment PC
+				PC += offset;
+			}
+		}
+		// BCC
+		else
+		{
+			// Increment PC
+			PC += offset;
+		}
+	}
+	else if(condition == ConditionCode::Zero)
+	{
+		// BEQ
+		if(passConditionIfBitSet)
+		{
+			// Increment PC
+			PC += offset;
+		}
+		// BNQ
+		else
+		{
+			// Increment PC
+			PC += offset;
+		}
+	}
+	else if(condition == ConditionCode::Negative)
+	{
+		// BMI
+		if(passConditionIfBitSet)
+		{
+			// Increment PC
+			PC += offset;
+		}
+		// BPL
+		else
+		{
+			// Increment PC
+			PC += offset;
+		}
+	}
+	else if(condition == ConditionCode::Overflow)
+	{
+		// BVS
+		if(passConditionIfBitSet)
+		{
+			// Increment PC
+			PC += offset;
+		}
+		// BVC
+		else
+		{
+			// Increment PC
+			PC += offset;
+		}
+	}
+	// No condition passed or condition == NONE -> BRA
+	else
+	{
+		// Increment PC
+			PC += offset;
+	}
 	return 0;
 };
 
