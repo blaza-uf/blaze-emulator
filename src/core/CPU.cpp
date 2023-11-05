@@ -715,7 +715,12 @@ Blaze::Cycles Blaze::CPU::executeBRK() {
 };
 
 Blaze::Cycles Blaze::CPU::executeBRL() {
-	// TODO
+	// Get the offset
+	Word offset = decodeAddress(AddressingMode::ProgramCounterRelativeLong);
+
+	// go-to label
+	PC += offset;
+	
 	return 0;
 };
 
