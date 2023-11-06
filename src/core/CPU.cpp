@@ -774,7 +774,10 @@ Blaze::Cycles Blaze::CPU::executeINY() {
 };
 
 Blaze::Cycles Blaze::CPU::executeJML() {
-	// TODO
+    Address addr = decodeAddress(AddressingMode::AbsoluteIndirect);
+    PC = addr;
+    PBR = (addr >> 16) & 0xFF;
+    SP -= 2;
 	return 0;
 };
 
@@ -817,12 +820,24 @@ Blaze::Cycles Blaze::CPU::executePEA() {
 };
 
 Blaze::Cycles Blaze::CPU::executePEI() {
-	// TODO
+    Word address = load16(PC + 1);
+    Word effectiveAddress = load16(address);
+    store16(0, SP + 1, effectiveAddress);
+    //SP -= 2;
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executePER() {
-	// TODO
+    Word address = load16(PC + 1);
+    Word relativeAddr = PC + address;
+    if (relativeAddr < 0x0000 || relativeAddr > 0xFFFF) {
+        // throw error if invalid range
+    }
+    else {
+        Word val = load16(relativeAddr);
+        store16(0, SP + 1, val);
+    }
+    //SP -= 2;
 	return 0;
 };
 
@@ -1344,7 +1359,9 @@ Blaze::Cycles Blaze::CPU::executeINC(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeJMP(AddressingMode mode) {
-	// TODO
+    Address addr = decodeAddress(mode);
+    PC = addr;
+    // not sure if PBR and SP is updated here
 	return 0;
 };
 
