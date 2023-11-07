@@ -1568,7 +1568,7 @@ Blaze::Cycles Blaze::CPU::executeTSB(AddressingMode mode) {
 
 Blaze::Cycles Blaze::CPU::executeBRA(ConditionCode condition, bool passConditionIfBitSet) {
 	// Get the offset if condition and bit are met
-	Byte offset = decodeAddress(AddressingMode::ProgramCounterRelative)
+	Byte offset = decodeAddress(AddressingMode::ProgramCounterRelative);
 
 	// Check the correct bit based on condition
 	if(condition == ConditionCode::Carry)
