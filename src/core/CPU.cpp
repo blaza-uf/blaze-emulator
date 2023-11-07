@@ -775,7 +775,7 @@ Blaze::Cycles Blaze::CPU::executeINY() {
 
 Blaze::Cycles Blaze::CPU::executeJML() {
     Address addr = decodeAddress(AddressingMode::AbsoluteIndirect);
-    PC = addr;
+    PC = addr & 0xFFFF;
     PBR = (addr >> 16) & 0xFF;
     SP -= 2;
 	return 0;
