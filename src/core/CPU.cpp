@@ -257,18 +257,15 @@ bool Blaze::CPU::getFlag(flags f) const {
 };
 
 Blaze::Byte Blaze::CPU::load8(Address address) const {
-	// TODO: load from memory
-	return 0;
+	return *(bus->read(address));
 };
 
 Blaze::Word Blaze::CPU::load16(Address address) const {
-	// TODO: load from memory
-	return 0;
+	return *(bus->read(address));
 };
 
 Blaze::Address Blaze::CPU::load24(Address address) const {
-	// TODO: load from memory
-	return 0;
+	return *(bus->read(address));
 };
 
 Blaze::Byte Blaze::CPU::load8(Byte bank, Word addressLow) const {
