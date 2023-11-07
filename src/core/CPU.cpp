@@ -820,6 +820,7 @@ Blaze::Cycles Blaze::CPU::executePEA() {
 
 Blaze::Cycles Blaze::CPU::executePEI() {
     Word effectiveAddress = decodeAddress(AddressingMode::DirectIndirect);
+    SP -= 2;
     store16(0, SP + 1, effectiveAddress);
     //SP -= 2;
 	return 0;
