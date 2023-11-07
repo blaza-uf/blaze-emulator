@@ -819,8 +819,7 @@ Blaze::Cycles Blaze::CPU::executePEA() {
 };
 
 Blaze::Cycles Blaze::CPU::executePEI() {
-    Word address = load16(PC + 1);
-    Word effectiveAddress = load16(address);
+    Word effectiveAddress = decodeAddress(AddressingMode::DirectIndirect);
     store16(0, SP + 1, effectiveAddress);
     //SP -= 2;
 	return 0;
