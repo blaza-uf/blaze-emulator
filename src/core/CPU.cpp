@@ -284,15 +284,18 @@ Blaze::Address Blaze::CPU::load24(Byte bank, Word addressLow) const {
 };
 
 void Blaze::CPU::store8(Address address, Byte value) {
-	// TODO: store to memory
+	// Write address and value to bus
+	bus->write(address, value);
 };
 
 void Blaze::CPU::store16(Address address, Word value) {
-	// TODO: store to memory
+	// Write 16-bit value to address through bus
+	bus->write(address, value);
 };
 
 void Blaze::CPU::store24(Address address, Address value) {
-	// TODO: store to memory
+	// Write 24-bit value to address through bus
+	bus->write(address, value);
 };
 
 void Blaze::CPU::store8(Byte bank, Word addressLow, Byte value) {
