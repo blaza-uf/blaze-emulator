@@ -827,8 +827,7 @@ Blaze::Cycles Blaze::CPU::executePEI() {
 };
 
 Blaze::Cycles Blaze::CPU::executePER() {
-    Word address = load16(PC + 1);
-    Word relativeAddr = PC + address;
+    Word relativeAddr = decodeAddress(AddressingMode::ProgramCounterRelativeLong);
     if (relativeAddr < 0x0000 || relativeAddr > 0xFFFF) {
         // throw error if invalid range
     }
