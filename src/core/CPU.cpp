@@ -1595,8 +1595,12 @@ Blaze::Cycles Blaze::CPU::executeBRA(ConditionCode condition, bool passCondition
 		// BEQ
 		if(passConditionIfBitSet)
 		{
-			// Increment PC
-			PC += offset;
+			// Check the zero bit
+			if(getFlag(flags::z))
+			{  
+				// Increment PC
+				PC += offset;
+			}
 		}
 		// BNQ
 		else
@@ -1610,8 +1614,12 @@ Blaze::Cycles Blaze::CPU::executeBRA(ConditionCode condition, bool passCondition
 		// BMI
 		if(passConditionIfBitSet)
 		{
-			// Increment PC
-			PC += offset;
+			// Check the carry bit
+			if(getFlag(flags::n))
+			{  
+				// Increment PC
+				PC += offset;
+			}
 		}
 		// BPL
 		else
@@ -1625,8 +1633,12 @@ Blaze::Cycles Blaze::CPU::executeBRA(ConditionCode condition, bool passCondition
 		// BVS
 		if(passConditionIfBitSet)
 		{
-			// Increment PC
-			PC += offset;
+			// Check the carry bit
+			if(getFlag(flags::v))
+			{  
+				// Increment PC
+				PC += offset;
+			}
 		}
 		// BVC
 		else
