@@ -23,9 +23,25 @@ namespace Blaze
             ram[addr] = data;
         }
     }
+    void Bus::write(Address addr, Word data)
+    {
+        // Memory bounds check
+        if(addr >= 0x0000 && addr <= 0xFFFF)
+        {
+            ram[addr] = data;
+        }
+    }
+    void Bus::write(Address addr, Address data)
+    {
+        // Memory bounds check
+        if(addr >= 0x0000 && addr <= 0xFFFF)
+        {
+            ram[addr] = data;
+        }
+    }
 
     //=== Reading from the bus ===
-    Byte* Bus::read(Address addr)
+    auto Bus::read(Address addr)
     {
         return &(ram[addr]);
     }
