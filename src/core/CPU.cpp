@@ -997,7 +997,6 @@ Blaze::Cycles Blaze::CPU::executeREP() {
 
 Blaze::Cycles Blaze::CPU::executeRTI() {
     P = *bus->read(SP++);
-
     // Pop the program counter from the stack
     uint16_t low = *bus->read(SP++);
     uint16_t high = *bus->read(SP++);
@@ -1056,11 +1055,14 @@ Blaze::Cycles Blaze::CPU::executeSEP() {
 };
 
 Blaze::Cycles Blaze::CPU::executeSTP() {
+	/*
 	// Do nothing until there is an interrup
 	while(true)
 	{
 		// Check for interrupt
 	}
+	*/
+	stopped = true;
 	return 0;
 };
 
@@ -1144,6 +1146,7 @@ Blaze::Cycles Blaze::CPU::executeTYX() {
 };
 
 Blaze::Cycles Blaze::CPU::executeWAI() {
+	/*
 	// wait until there is an interrupt
 	while(true)
 	{
@@ -1160,6 +1163,8 @@ Blaze::Cycles Blaze::CPU::executeWAI() {
 			}
 		}
 	}
+	*/
+	waitingForInterrupt = true;
 	return 0;
 };
 
