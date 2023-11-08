@@ -257,18 +257,15 @@ bool Blaze::CPU::getFlag(flags f) const {
 };
 
 Blaze::Byte Blaze::CPU::load8(Address address) const {
-	// TODO: load from memory
-	return 0;
+	return *(bus->read(address));
 };
 
 Blaze::Word Blaze::CPU::load16(Address address) const {
-	// TODO: load from memory
-	return 0;
+	return *(bus->read(address));
 };
 
 Blaze::Address Blaze::CPU::load24(Address address) const {
-	// TODO: load from memory
-	return 0;
+	return *(bus->read(address));
 };
 
 Blaze::Byte Blaze::CPU::load8(Byte bank, Word addressLow) const {
@@ -284,15 +281,18 @@ Blaze::Address Blaze::CPU::load24(Byte bank, Word addressLow) const {
 };
 
 void Blaze::CPU::store8(Address address, Byte value) {
-	// TODO: store to memory
+	// Write address and value to bus
+	bus->write(address, value);
 };
 
 void Blaze::CPU::store16(Address address, Word value) {
-	// TODO: store to memory
+	// Write 16-bit value to address through bus
+	bus->write(address, value);
 };
 
 void Blaze::CPU::store24(Address address, Address value) {
-	// TODO: store to memory
+	// Write 24-bit value to address through bus
+	bus->write(address, value);
 };
 
 void Blaze::CPU::store8(Byte bank, Word addressLow, Byte value) {
@@ -1599,7 +1599,7 @@ Blaze::Cycles Blaze::CPU::executeTSB(AddressingMode mode) {
 
 Blaze::Cycles Blaze::CPU::executeBRA(ConditionCode condition, bool passConditionIfBitSet) {
 	// Get the offset if condition and bit are met
-	Byte offset = decodeAddress(AddressingMode::ProgramCounterRelative)
+	Byte offset = decodeAddress(AddressingMode::ProgramCounterRelative);
 
 	// Check the correct bit based on condition
 	if(condition == ConditionCode::Carry)
@@ -1626,8 +1626,12 @@ Blaze::Cycles Blaze::CPU::executeBRA(ConditionCode condition, bool passCondition
 		// BEQ
 		if(passConditionIfBitSet)
 		{
-			// Increment PC
-			PC += offset;
+			// Check the zero bit
+			if(getFlag(flags::z))
+			{  
+				// Increment PC
+				PC += offset;
+			}
 		}
 		// BNQ
 		else
@@ -1641,8 +1645,12 @@ Blaze::Cycles Blaze::CPU::executeBRA(ConditionCode condition, bool passCondition
 		// BMI
 		if(passConditionIfBitSet)
 		{
-			// Increment PC
-			PC += offset;
+			// Check the carry bit
+			if(getFlag(flags::n))
+			{  
+				// Increment PC
+				PC += offset;
+			}
 		}
 		// BPL
 		else
@@ -1656,8 +1664,12 @@ Blaze::Cycles Blaze::CPU::executeBRA(ConditionCode condition, bool passCondition
 		// BVS
 		if(passConditionIfBitSet)
 		{
-			// Increment PC
-			PC += offset;
+			// Check the carry bit
+			if(getFlag(flags::v))
+			{  
+				// Increment PC
+				PC += offset;
+			}
 		}
 		// BVC
 		else
