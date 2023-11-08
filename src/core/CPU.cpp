@@ -710,7 +710,27 @@ const Blaze::Byte* Blaze::CPU::currentInstruction() const {
 };
 
 Blaze::Cycles Blaze::CPU::executeBRK() {
-	// TODO
+	// Push PC+2 onto the stack
+    bus->write(SP - 1, ((PC + 2) >> 8) & 0xFF);
+    bus->write(SP, (PC + 2) & 0xFF);
+    SP -= 2;
+
+    // Push processor status onto the stack with the break flag set
+    setFlag(b, 1);
+    bus->write(SP, P | 0x10);
+    SP--;
+
+    // Disable further interrupts
+    setFlag(i, 1);
+
+    // Fetch the interrupt vector for IRQ
+    addrAbs = 0xFFFE; // BRK uses the IRQ vector
+    uint16_t low = *bus->read(addrAbs);
+    uint16_t high = *bus->read(addrAbs + 1);
+    PC = (high << 8) | low;
+
+    // Set cycles for BRK instruction
+    cyclesCountDown = 7;
 	return 0;
 };
 
@@ -976,7 +996,13 @@ Blaze::Cycles Blaze::CPU::executeREP() {
 };
 
 Blaze::Cycles Blaze::CPU::executeRTI() {
-	// TODO
+    P = *bus->read(SP++);
+
+    // Pop the program counter from the stack
+    uint16_t low = *bus->read(SP++);
+    uint16_t high = *bus->read(SP++);
+    PC = (high << 8) | low;
+	setFlag(b, false);
 	return 0;
 };
 
