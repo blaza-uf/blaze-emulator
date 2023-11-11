@@ -31,7 +31,7 @@ endif()
 
 add_subdirectory(vendor/catch2 EXCLUDE_FROM_ALL)
 
-add_library(blaze-core STATIC
+add_library(blaze-core OBJECT
 	src/core/core.cpp
 	src/core/MemRam.cpp
 	src/core/CPU.cpp

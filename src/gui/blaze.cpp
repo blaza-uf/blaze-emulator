@@ -371,8 +371,7 @@ int main(int argc, char** argv) {
 						case Blaze::MenuID::FileClose: {
 							// when a ROM is unloaded, we need to reset all components
 							bus.reset();
-							// use `static_cast<Blaze::MMIODevice*>` to work around a Windows linker issue
-							static_cast<Blaze::MMIODevice*>(&bus.rom)->reset(&bus); // we also reset the ROM
+							bus.rom.reset(&bus); // we also reset the ROM
 							executing = false;
 							debugBuffer = "";
 						} break;
