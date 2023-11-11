@@ -4,8 +4,12 @@ project(blaze-emulator)
 
 option(SDL_VENDORED "Use vendored SDL library" ON)
 
+set(SDL2TTF_VENDORED ON CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
 if(SDL_VENDORED)
 	add_subdirectory(vendor/sdl EXCLUDE_FROM_ALL)
+	add_subdirectory(vendor/SDL_ttf EXCLUDE_FROM_ALL)
 else()
 	# the first line means that the core SDL2 components are required,
 	# while the second line means that the SDL2-main component is *not* required.
@@ -13,6 +17,8 @@ else()
 	# the SDL2-main component is only available on certain platforms (e.g. Windows).
 	find_package(SDL2 REQUIRED CONFIG REQUIRED COMPONENTS SDL2)
 	find_package(SDL2 REQUIRED CONFIG COMPONENTS SDL2main)
+
+	find_package(SDL2_ttf REQUIRED CONFIG)
 endif()
 
 add_subdirectory(vendor/catch2 EXCLUDE_FROM_ALL)
