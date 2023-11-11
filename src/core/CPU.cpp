@@ -221,9 +221,6 @@ void Blaze::CPU::execute() {
 	// execute instruction with the info
 	info.cycles = executeInstruction(info);
 
-	// Decrement cycles since fetching an instruction is always 1 cycle
-	info.cycles--;
-
 	// Count down cycles
 	while(info.cycles > 0)
 	{
