@@ -150,12 +150,18 @@ static bool openROMDialog(std::string& outPath) {
 	item->Release();
 	fileDialog->Release();
 	CoUninitialize();
+
+	// trim off null characters
+	while (!outPath.empty() && outPath[outPath.size() - 1] == '\0') {
+		outPath.resize(outPath.size() - 1);
+	}
+
 	return true;
 };
 #endif
 
 static int createText(const std::string& text, const SDL_Color& color, TTF_Font* font, SDL_Renderer* renderer, SDL_Texture*& outTexture, int& outWidth, int& outHeight) {
-	SDL_Surface* tmpSurface = TTF_RenderText_Solid(font, text.c_str(), color);
+	SDL_Surface* tmpSurface = TTF_RenderUTF8_Solid_Wrapped(font, text.c_str(), color, 0);
 	if (!tmpSurface) {
 		return -1;
 	}
@@ -305,11 +311,26 @@ int main(int argc, char** argv) {
 
 							if (openROMDialog(path)) {
 								output << "Got ROM: " << path;
+								output << '\n';
+
+								try {
+									bus.rom.load(path);
+
+									if (bus.rom.type() == Blaze::ROM::Type::INVALID) {
+										output << "Failed to load ROM";
+									} else {
+										output << "Loaded ROM with name:\n" << bus.rom.name();
+									}
+								} catch (const std::runtime_error& e) {
+									output << "Failed to load ROM:\n" << e.what();
+								}
 							} else {
 								output << "Failed to open ROM selection dialog";
 							}
 
-							OutputDebugStringA(output.str().c_str());
+							output << '\n';
+
+							debugBuffer = output.str();
 						} break;
 
 						case Blaze::MenuID::FileClose: {
