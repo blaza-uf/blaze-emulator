@@ -357,7 +357,7 @@ int main(int argc, char** argv) {
 		bus.cpu.execute();
 
 		// render the debug buffer
-		{
+		if (!debugBuffer.empty()) {
 			SDL_Rect rect = {
 				0, 0,
 			};
