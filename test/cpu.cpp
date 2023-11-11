@@ -1,4 +1,4 @@
-#include <blaze/CPU.hpp>
+#include <blaze/Bus.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/generators/catch_generators_adapters.hpp>
@@ -272,9 +272,7 @@ static constexpr std::array<Instruction, 256> OPCODE_INFO {
 
 TEST_CASE("Instruction decoding", "[cpu]") {
 	MemRam ram;
-	CPU cpu;
-
-	cpu.reset(ram);
+	Bus bus;
 
 	Byte opcodeByte;
 	Instruction expectedInfo;
@@ -285,7 +283,7 @@ TEST_CASE("Instruction decoding", "[cpu]") {
 	std::string resultHex(asHex.str());
 
 	DYNAMIC_SECTION("Decode instruction 0x" << resultHex) {
-		auto decodedInfo = cpu.decodeInstruction(opcodeByte);
+		auto decodedInfo = bus.cpu.decodeInstruction(opcodeByte);
 
 		// the static_casts below are for proper integer output for test assertions
 
