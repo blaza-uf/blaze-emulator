@@ -190,6 +190,7 @@ int main(int argc, char** argv) {
 	SDL_SysWMinfo mainWindowInfo;
 	Blaze::Bus bus;
 	TTF_Font* font = nullptr;
+	bool executing = false;
 
 #ifdef _WIN32
 	HWND win32MainWindow = nullptr;
@@ -319,7 +320,12 @@ int main(int argc, char** argv) {
 									if (bus.rom.type() == Blaze::ROM::Type::INVALID) {
 										output << "Failed to load ROM";
 									} else {
-										output << "Loaded ROM with name:\n" << bus.rom.name();
+										output << "Loaded ROM with name: " << bus.rom.name();
+
+										// when a ROM is loaded, we need to reset all components
+										bus.reset();
+
+										executing = true;
 									}
 								} catch (const std::runtime_error& e) {
 									output << "Failed to load ROM:\n" << e.what();
@@ -334,7 +340,11 @@ int main(int argc, char** argv) {
 						} break;
 
 						case Blaze::MenuID::FileClose: {
-							// TODO
+							// when a ROM is unloaded, we need to reset all components
+							bus.reset();
+							bus.rom.reset(&bus); // we also reset the ROM
+							executing = false;
+							debugBuffer = "";
 						} break;
 
 						case Blaze::MenuID::FileExit: {
@@ -374,8 +384,10 @@ int main(int argc, char** argv) {
 		SDL_SetRenderDrawColor(renderer, Blaze::defaultWindowColor.r, Blaze::defaultWindowColor.g, Blaze::defaultWindowColor.b, Blaze::defaultWindowColor.a);
 		SDL_RenderClear(renderer);
 
-		// execute a single instruction
-		bus.cpu.execute();
+		if (executing) {
+			// execute a single instruction
+			bus.cpu.execute();
+		}
 
 		// render the debug buffer
 		if (!debugBuffer.empty()) {
