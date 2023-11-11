@@ -431,6 +431,7 @@ Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0) const {
 				case Group1Opcode::LDA: return Instruction(Opcode::LDA, instructionSize, 0, mode);
 				case Group1Opcode::CMP: return Instruction(Opcode::CMP, instructionSize, 0, mode);
 				case Group1Opcode::SBC: return Instruction(Opcode::SBC, instructionSize, 0, mode);
+				default: return Instruction();
 			}
 		} break;
 
@@ -448,6 +449,7 @@ Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0) const {
 					case Group1Opcode::LDA: return Instruction(Opcode::LDA, 2, 0, AddressingMode::DirectIndirect);
 					case Group1Opcode::CMP: return Instruction(Opcode::CMP, 2, 0, AddressingMode::DirectIndirect);
 					case Group1Opcode::SBC: return Instruction(Opcode::SBC, 2, 0, AddressingMode::DirectIndirect);
+					default: return Instruction();
 				}
 			}
 
@@ -498,6 +500,7 @@ Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0) const {
 				case Group2Opcode::LDX: return Instruction(Opcode::LDX, instructionSize, 0, mode);
 				case Group2Opcode::DEC: return Instruction(Opcode::DEC, instructionSize, 0, mode);
 				case Group2Opcode::INC: return Instruction(Opcode::INC, instructionSize, 0, mode);
+				default: return Instruction();
 			}
 		} break;
 
@@ -556,6 +559,7 @@ Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0) const {
 							return Instruction();
 					}
 					break;
+				default: return Instruction();
 			}
 		} break;
 
@@ -581,6 +585,7 @@ Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0) const {
 				case Group1Opcode::LDA: return Instruction(Opcode::LDA, instructionSize, 0, mode);
 				case Group1Opcode::CMP: return Instruction(Opcode::CMP, instructionSize, 0, mode);
 				case Group1Opcode::SBC: return Instruction(Opcode::SBC, instructionSize, 0, mode);
+				default: return Instruction();
 			}
 		} break;
 
