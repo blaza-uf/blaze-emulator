@@ -372,27 +372,29 @@ namespace Blaze {
 
 		static const std::unordered_map<Byte, Instruction> INSTRUCTIONS_WITH_NO_PATTERN;
 
-		enum flags: Byte {
-			// Process Status Flags
-			c = (1 << 0), // carry
-			z = (1 << 1), // zero
-			i = (1 << 2), // interrupt disable
-			d = (1 << 3), // decimal
-			x = (1 << 4), // index register width
-			b = (1 << 4), // break
-			m = (1 << 5), // accumulator & memory width
-			v = (1 << 6), // overflow
-			n = (1 << 7), // negative
+		struct flags {
+			enum IngoreMe: Byte {
+				// Process Status Flags
+				c = (1 << 0), // carry
+				z = (1 << 1), // zero
+				i = (1 << 2), // interrupt disable
+				d = (1 << 3), // decimal
+				x = (1 << 4), // index register width
+				b = (1 << 4), // break
+				m = (1 << 5), // accumulator & memory width
+				v = (1 << 6), // overflow
+				n = (1 << 7), // negative
+			};
 		};
 
 		class Register {
 		private:
 			Word _value = 0;
-			flags& _flags;
-			flags _mask;
+			Byte& _flags;
+			Byte _mask;
 
 		public:
-			Register(flags& cpuFlags, flags eightBitMask):
+			Register(Byte& cpuFlags, Byte eightBitMask):
 				_flags(cpuFlags),
 				_mask(eightBitMask)
 				{};
@@ -437,8 +439,6 @@ namespace Blaze {
 			Word operator|(Word rhs) const;
 			Word operator^(Word rhs) const;
 		};
-
-		flags f;
 
 		Byte e = 1; //emulation mode. separate from p register flags
 
@@ -582,9 +582,9 @@ namespace Blaze {
 		Cycles executeBRA(ConditionCode condition, bool passConditionIfBitSet);
 
 		CPU():
-			A(f, flags::m),
-			X(f, flags::x),
-			Y(f, flags::x)
+			A(P, flags::m),
+			X(P, flags::x),
+			Y(P, flags::x)
 			{};
 
 		void reset(MemRam &memory);      		// Reset CPU internal state
@@ -600,8 +600,8 @@ namespace Blaze {
 		void nmi();
 		void abort();
 
-		bool getFlag(flags f) const;
-		void setFlag(flags f, bool s);
+		bool getFlag(Byte f) const;
+		void setFlag(Byte f, bool s);
 
 		Byte getCarry() const {
 			return getFlag(flags::c) ? 1 : 0;

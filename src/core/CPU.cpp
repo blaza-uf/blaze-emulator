@@ -101,12 +101,12 @@ void Blaze::CPU::reset(MemRam &memory) {
 	Y.reset();
 	SP = 0x0100;
 
-	setFlag(d, false);
+	setFlag(flags::d, false);
 
-	setFlag(m, true);
-	setFlag(x, true);
-	setFlag(i, true);
-	setFlag(c, true);
+	setFlag(flags::m, true);
+	setFlag(flags::x, true);
+	setFlag(flags::i, true);
+	setFlag(flags::c, true);
 
 	// the processor starts out in emulation mode
 	e = 1;
@@ -117,7 +117,7 @@ void Blaze::CPU::reset(MemRam &memory) {
 
 void Blaze::CPU::irq() {
 	// If the interrupt is not masked
-	if (!getFlag(i))
+	if (!getFlag(flags::i))
 	{
 		if (!usingEmulationMode()) {
 			// in native mode: push the PBR
@@ -130,8 +130,8 @@ void Blaze::CPU::irq() {
 		SP -= 2;
 
 		// Set some interrupt flags first and then push the status register onto the stack
-		setFlag(b, false);
-		setFlag(i, true);
+		setFlag(flags::b, false);
+		setFlag(flags::i, true);
 		store8(SP, P);
 		SP--;
 
@@ -156,8 +156,8 @@ void Blaze::CPU::nmi() {
 	store16(SP - 1, PC);
 	SP -= 2;
 
-	setFlag(b, false);
-	setFlag(i, true);
+	setFlag(flags::b, false);
+	setFlag(flags::i, true);
 	store8(SP, P);
 	SP--;
 
@@ -179,8 +179,8 @@ void Blaze::CPU::abort() {
 	store8(SP, P);
 	SP--;
 
-	setFlag(i, true);
-	setFlag(d, false);
+	setFlag(flags::i, true);
+	setFlag(flags::d, false);
 
 	PBR = 0x00;
 
@@ -190,8 +190,8 @@ void Blaze::CPU::abort() {
 }
 
 void Blaze::CPU::setZeroNegFlags(const Register& reg) {
-	setFlag(n, reg.mostSignificantBit());
-	setFlag(z, reg.load() == 0);
+	setFlag(flags::n, reg.mostSignificantBit());
+	setFlag(flags::z, reg.load() == 0);
 }
 
 void Blaze::CPU::setOverflowFlag(Word leftOperand, Word rightOperand, Word result) {
@@ -228,7 +228,7 @@ void Blaze::CPU::execute() {
 	}
 }
 
-void Blaze::CPU::setFlag(CPU::flags flag, bool s) {
+void Blaze::CPU::setFlag(Byte flag, bool s) {
 	if (s) {
 		P |= flag; // set flag
 	} else {
@@ -236,7 +236,7 @@ void Blaze::CPU::setFlag(CPU::flags flag, bool s) {
 	}
 }
 
-bool Blaze::CPU::getFlag(flags f) const {
+bool Blaze::CPU::getFlag(Byte f) const {
 	return (P & f) != 0;
 };
 
@@ -699,22 +699,22 @@ Blaze::Cycles Blaze::CPU::executeBRL() {
 };
 
 Blaze::Cycles Blaze::CPU::executeCLC() {
-	setFlag(c, false);
+	setFlag(flags::c, false);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeCLD() {
-	setFlag(d, false);
+	setFlag(flags::d, false);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeCLI() {
-	setFlag(i, false);
+	setFlag(flags::i, false);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeCLV() {
-	setFlag(v, false);
+	setFlag(flags::v, false);
 	return 0;
 };
 
@@ -842,7 +842,7 @@ Blaze::Cycles Blaze::CPU::executePHK() {
 Blaze::Cycles Blaze::CPU::executePHP() {
 	store8(SP, P);
 	SP--;
-	setFlag(b, false);
+	setFlag(flags::b, false);
 	return 0;
 };
 
@@ -886,8 +886,8 @@ Blaze::Cycles Blaze::CPU::executePLA() {
 Blaze::Cycles Blaze::CPU::executePLB() {
 	SP++;
 	DBR = load8(SP);
-	setFlag(n, msb8(DBR));
-	setFlag(z, (DBR == 0));
+	setFlag(flags::n, msb8(DBR));
+	setFlag(flags::z, (DBR == 0));
 	return 0;
 };
 
@@ -895,13 +895,13 @@ Blaze::Cycles Blaze::CPU::executePLD() {
 	SP++;
 	if (usingEmulationMode()) {
 		DR = load8(SP);
-		setFlag(n, msb8(DR));
+		setFlag(flags::n, msb8(DR));
 	} else {
 		DR = load16(SP);
 		SP++;
-		setFlag(n, msb16(DR));
+		setFlag(flags::n, msb16(DR));
 	}
-	setFlag(z, (DR == 0));
+	setFlag(flags::z, (DR == 0));
 	return 0;
 };
 
@@ -909,8 +909,8 @@ Blaze::Cycles Blaze::CPU::executePLP() {
 	SP++;
 	P = load8(SP);
 	if (usingEmulationMode()) {
-		setFlag(x, true);
-		setFlag(m, true);
+		setFlag(flags::x, true);
+		setFlag(flags::m, true);
 	}
 	return 0;
 };
@@ -945,8 +945,8 @@ Blaze::Cycles Blaze::CPU::executeREP() {
 	Word val = loadOperand(AddressingMode::Immediate);
 	P &= ~val;
 	if (usingEmulationMode()) {
-		setFlag(x, true);
-		setFlag(m, true);
+		setFlag(flags::x, true);
+		setFlag(flags::m, true);
 	}
 	return 0;
 };
@@ -979,17 +979,17 @@ Blaze::Cycles Blaze::CPU::executeRTS() {
 };
 
 Blaze::Cycles Blaze::CPU::executeSEC() {
-	setFlag(c, true);
+	setFlag(flags::c, true);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeSED() {
-	setFlag(d, true);
+	setFlag(flags::d, true);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeSEI() {
-	setFlag(i, true);
+	setFlag(flags::i, true);
 	return 0;
 };
 
@@ -1023,11 +1023,11 @@ Blaze::Cycles Blaze::CPU::executeTAY() {
 Blaze::Cycles Blaze::CPU::executeTCD() {
 	DR = A.forceLoadFull();
 	if (usingEmulationMode()) {
-		setFlag(n, msb8(DR));
+		setFlag(flags::n, msb8(DR));
 	} else {
-		setFlag(n, msb16(DR));
+		setFlag(flags::n, msb16(DR));
 	}
-	setFlag(z, (DR == 0));
+	setFlag(flags::z, (DR == 0));
 	return 0;
 };
 
@@ -1348,7 +1348,7 @@ Blaze::Cycles Blaze::CPU::executeLSR(AddressingMode mode) {
 	Address addr = decodeAddress(mode);
 	Word data = memoryAndAccumulatorAre8Bit() ? load8(addr) : load16(addr);
 
-	setFlag(c, (data & 0x01) != 0);
+	setFlag(flags::c, (data & 0x01) != 0);
 
 	data >>= 1;
 
@@ -1374,7 +1374,7 @@ Blaze::Cycles Blaze::CPU::executeROL(AddressingMode mode) {
 	Byte carry = getCarry();
 
 	//set c to most significant bit of data
-	setFlag(c, msb(data, memoryAndAccumulatorAre8Bit()));
+	setFlag(flags::c, msb(data, memoryAndAccumulatorAre8Bit()));
 
 	data = (data << 1) | carry; // shift carry to least significant bit of 'data'
 
@@ -1391,7 +1391,7 @@ Blaze::Cycles Blaze::CPU::executeROR(AddressingMode mode) {
 	Word data = memoryAndAccumulatorAre8Bit() ? load8(addr) : load16(addr);
 	Byte carry = getCarry();
 
-	setFlag(c, (data & 0x01) != 0);
+	setFlag(flags::c, (data & 0x01) != 0);
 
 	data = (data >> 1) | carry;
 
