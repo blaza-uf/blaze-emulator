@@ -15,13 +15,24 @@ main:
 	rep #$ff
 	sep #$04
 
+	; set up the stack pointer
+	lda #$01ff
+	tcs
+
 	ldx #hello_world_string
 	jsr print_string
 
 	jmp hang
 
 ; input: string address in X register
+; must be in native mode with 16-bit index registers
 print_string:
+	.init:
+		; save processor status
+		php
+		; use 8-bit memory and accumulator
+		sep #$20
+
 	.loop:
 		; load the next character
 		lda 0, x
@@ -40,6 +51,9 @@ print_string:
 		jmp .loop
 
 	.done:
+		; restore processor status
+		plp
+		; return to caller
 		rts
 
 native_cop:
@@ -57,7 +71,8 @@ hang:
 	jmp hang
 
 hello_world_string:
-	db "Hello, world!\n", 0
+	; $0A = newline
+	db "Hello, world!", $0A, 0
 
 rom_header:
 	org $00ffc0
