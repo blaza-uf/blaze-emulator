@@ -5,6 +5,7 @@
 #include <limits>
 #include <array>
 #include <unordered_map>
+#include <functional>
 
 namespace Blaze {
 	using ClockTicks = uint32_t;
@@ -293,6 +294,34 @@ namespace Blaze {
 			INVALID = std::numeric_limits<Byte>::max(),
 		};
 
+		// use enum within namespace instead of `enum class` because we *want* implicit conversion to an integer here
+		struct ExceptionVectorAddress {
+			enum IgnoreMe: Address {
+				NativeCOP   = 0xffe4,
+				NativeBRK   = 0xffe6,
+				NativeABORT = 0xffe8,
+				NativeNMI   = 0xffea,
+				// 0xffec is reserved
+				NativeIRQ   = 0xffee,
+
+				EmulatedCOP   = 0xfff4,
+				// 0xfff6 is reserved
+				EmulatedABORT = 0xfff8,
+				EmulatedNMI   = 0xfffa,
+				EmulatedRESET = 0xfffc,
+				// yes, these are the same address
+				EmulatedIRQ   = 0xfffe,
+				EmulatedBRK   = 0xfffe,
+			};
+		};
+
+		struct CustomWDMOpcodes {
+			enum IgnoreMe: Byte {
+				// Prints the character from the low 8 bits of the accumulator
+				PutChararacter = 0x80,
+			};
+		};
+
 		struct Instruction {
 			Opcode opcode = Opcode::INVALID;
 			Byte size = 0;
@@ -423,8 +452,16 @@ namespace Blaze {
 		Byte P; // process status
 		MemRam* _memory; // TODO: Replace direct memory access with Bus r/w
 
+		// the full 24-bit address of the instruction that is *currently executing*
+		//
+		// this is NOT the same as the PC; the PC is automatically incremented to the next instruction
+		// BEFORE the current instruction starts executing.
+		Address executingPC;
+
 		// System Bus
 		Bus *bus = nullptr;
+
+		std::function<void(char)> putCharacterHook = nullptr;
 
 		Byte load8(Address address) const;
 		Byte load8(Byte bank, Word addressLow) const;
@@ -450,14 +487,12 @@ namespace Blaze {
 		Word loadOperand(AddressingMode addressingMode) const;
 
 		// decodes the current instruction based on the given opcode, returning the decoded instruction information
-		Instruction decodeInstruction(Byte opcode) const;
+		Instruction decodeInstruction(Byte inst0) const;
 
 		// executes the current (pre-decoded) instruction with the given information
 		Cycles executeInstruction(const Instruction& info);
 
 		Cycles invalidInstruction();
-
-		const Byte* currentInstruction() const;
 
 		Cycles executeBRK();
 		Cycles executeBRL();
@@ -561,7 +596,6 @@ namespace Blaze {
 		// Interrupt Handling
 		Cycles cyclesCountDown = 0;					// Counts how many cycles the instruction has remaining
 		ClockTicks clockCount = 0;					// A global accumulation of the number of clocks
-		Address addrAbs = 0x00000000;				// The address from last visit
 		void irq();
 		void nmi();
 		void abort();
@@ -584,6 +618,10 @@ namespace Blaze {
 
 		bool indexRegistersAre8Bit() const {
 			return getFlag(flags::x);
+		};
+
+		bool usingEmulationMode() const {
+			return e != 0;
 		};
 	};
 } // namespace Blaze

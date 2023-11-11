@@ -4,15 +4,12 @@ namespace Blaze
 {
     //=== Constructor ===
     Bus::Bus()
-    : ram(),
-    cpu()
     {
+        cpu.bus = this;
+
         // Connect to CPU on boot: reset
         cpu.reset(ram);
     }
-
-    //=== Destructor ===
-    Bus::~Bus(){}
 
     //=== Writing to the bus ===
     void Bus::write(Address addr, Byte data)
@@ -41,8 +38,18 @@ namespace Blaze
     }
 
     //=== Reading from the bus ===
-    auto Bus::read(Address addr)
+    Byte Bus::read8(Address addr)
     {
-        return &(ram[addr]);
+        return ram[addr];
+    }
+
+    Word Bus::read16(Address addr)
+    {
+        return ram[addr];
+    }
+
+    Address Bus::read24(Address addr)
+    {
+        return ram[addr];
     }
 }

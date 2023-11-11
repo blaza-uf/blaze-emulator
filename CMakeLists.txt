@@ -28,6 +28,7 @@ add_library(blaze-core STATIC
 	src/core/MemRam.cpp
 	src/core/CPU.cpp
 	src/core/Bus.cpp
+	src/core/Register.cpp
 )
 
 target_include_directories(blaze-core PUBLIC
