@@ -7,6 +7,14 @@ option(SDL_VENDORED "Use vendored SDL library" ON)
 set(SDL2TTF_VENDORED ON CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
+if (MINGW)
+	set(CMAKE_C_FLAGS_DEBUG "-g -gdwarf-2 -O0")
+	set(CMAKE_CXX_FLAGS_DEBUG "-g -gdwarf-2 -O0")
+
+	# force SDL to use DWARF 2
+	set(HAVE_GDWARF_4 OFF CACHE INTERNAL "" FORCE)
+endif()
+
 if(SDL_VENDORED)
 	add_subdirectory(vendor/sdl EXCLUDE_FROM_ALL)
 	add_subdirectory(vendor/SDL_ttf EXCLUDE_FROM_ALL)
