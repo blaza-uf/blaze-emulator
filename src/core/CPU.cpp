@@ -354,9 +354,11 @@ Blaze::Address Blaze::CPU::decodeAddress(AddressingMode mode) const {
 	}
 };
 
-Blaze::Word Blaze::CPU::loadOperand(AddressingMode addressingMode) const {
+Blaze::Word Blaze::CPU::loadOperand(AddressingMode addressingMode, bool use8BitImmediate) const {
 	Address operand = decodeAddress(addressingMode);
-	if (addressingMode != AddressingMode::Immediate) {
+	if (addressingMode == AddressingMode::Immediate) {
+		operand = use8BitImmediate ? load8(executingPC + 1) : load16(executingPC + 1);
+	} else {
 		operand = load16(operand);
 	}
 
@@ -947,7 +949,7 @@ Blaze::Cycles Blaze::CPU::executePLY() {
 };
 
 Blaze::Cycles Blaze::CPU::executeREP() {
-	Word val = loadOperand(AddressingMode::Immediate);
+	Word val = loadOperand(AddressingMode::Immediate, true);
 	P &= ~val;
 	if (usingEmulationMode()) {
 		setFlag(flags::x, true);
@@ -999,7 +1001,7 @@ Blaze::Cycles Blaze::CPU::executeSEI() {
 };
 
 Blaze::Cycles Blaze::CPU::executeSEP() {
-	Word val = loadOperand(AddressingMode::Immediate);
+	Word val = loadOperand(AddressingMode::Immediate, true);
 	P |= val;
 	return 0;
 };
@@ -1113,7 +1115,7 @@ Blaze::Cycles Blaze::CPU::executeWAI() {
 };
 
 Blaze::Cycles Blaze::CPU::executeWDM() {
-	Byte operand = loadOperand(AddressingMode::Immediate);
+	Byte operand = loadOperand(AddressingMode::Immediate, true);
 
 	switch (operand) {
 		case CustomWDMOpcodes::PutChararacter: {
@@ -1170,7 +1172,7 @@ Blaze::Cycles Blaze::CPU::executeXCE() {
 Blaze::Cycles Blaze::CPU::executeADC(AddressingMode mode) {
 	// use `Address` instead of `Word` so that we have extra bits to properly compute the carry
 	Address left = A.load();
-	Address right = loadOperand(mode);
+	Address right = loadOperand(mode, memoryAndAccumulatorAre8Bit());
 	Address result = left + right + getCarry();
 	Address wordMask = (memoryAndAccumulatorAre8Bit() ? 0xff : 0xffff);
 	Word wordResult = result & wordMask;
@@ -1185,7 +1187,7 @@ Blaze::Cycles Blaze::CPU::executeADC(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeAND(AddressingMode mode) {
-	Word val = loadOperand(mode);
+	Word val = loadOperand(mode, memoryAndAccumulatorAre8Bit());
 	A &= val;
 	setZeroNegFlags(A);
 	return 0;
@@ -1226,7 +1228,7 @@ Blaze::Cycles Blaze::CPU::executeASL(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeBIT(AddressingMode mode) {
-	Word val = loadOperand(mode);
+	Word val = loadOperand(mode, memoryAndAccumulatorAre8Bit());
 	setFlag(flags::z, (A & val) == 0);
 	setFlag(flags::n, msb(val, memoryAndAccumulatorAre8Bit()));
 	if (memoryAndAccumulatorAre8Bit()) {
@@ -1239,7 +1241,7 @@ Blaze::Cycles Blaze::CPU::executeBIT(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeCMP(AddressingMode mode) {
-	Word val = loadOperand(mode);
+	Word val = loadOperand(mode, memoryAndAccumulatorAre8Bit());
 	Word temp = A.load() - val;
 	setFlag(flags::z, (A == val));
 	setFlag(flags::c, (A >= val));
@@ -1248,7 +1250,7 @@ Blaze::Cycles Blaze::CPU::executeCMP(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeCPX(AddressingMode mode) {
-	Word val = loadOperand(mode);
+	Word val = loadOperand(mode, indexRegistersAre8Bit());
 	Word temp = X - val;
 	setFlag(flags::z, (X == val));
 	setFlag(flags::c, (X >= val));
@@ -1257,7 +1259,7 @@ Blaze::Cycles Blaze::CPU::executeCPX(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeCPY(AddressingMode mode) {
-	Word val = loadOperand(mode);
+	Word val = loadOperand(mode, indexRegistersAre8Bit());
 	Word temp = Y - val;
 	setFlag(flags::z, (Y == val));
 	setFlag(flags::c, (Y >= val));
@@ -1284,7 +1286,7 @@ Blaze::Cycles Blaze::CPU::executeDEC(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeEOR(AddressingMode mode) {
-	Word val = loadOperand(mode);
+	Word val = loadOperand(mode, memoryAndAccumulatorAre8Bit());
 	A ^= val;
 	setZeroNegFlags(A);
 	return 0;
@@ -1329,21 +1331,21 @@ Blaze::Cycles Blaze::CPU::executeJSR(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeLDA(AddressingMode mode) {
-	Word val = loadOperand(mode);
+	Word val = loadOperand(mode, memoryAndAccumulatorAre8Bit());
 	A = val;
 	setZeroNegFlags(A);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeLDX(AddressingMode mode) {
-	Word val = loadOperand(mode);
+	Word val = loadOperand(mode, indexRegistersAre8Bit());
 	X = val;
 	setZeroNegFlags(X);
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeLDY(AddressingMode mode) {
-	Word val = loadOperand(mode);
+	Word val = loadOperand(mode, indexRegistersAre8Bit());
 	Y = val;
 	setZeroNegFlags(Y);
 	return 0;
@@ -1367,7 +1369,7 @@ Blaze::Cycles Blaze::CPU::executeLSR(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeORA(AddressingMode mode) {
-	Word val = loadOperand(mode);
+	Word val = loadOperand(mode, memoryAndAccumulatorAre8Bit());
 	A |= val;
 	setZeroNegFlags(A);
 	return 0;
@@ -1413,7 +1415,7 @@ Blaze::Cycles Blaze::CPU::executeSBC(AddressingMode mode) {
 	Address left = A.load();
 
 	// Get and (bitwise) negate the operand
-	Address operand = ~(loadOperand(mode));
+	Address operand = ~(loadOperand(mode, memoryAndAccumulatorAre8Bit()));
 
 	// Compute
 	Address result = left + operand + getCarry();
@@ -1470,7 +1472,8 @@ Blaze::Cycles Blaze::CPU::executeSTY(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeSTZ(AddressingMode mode) {
-	Address addr = loadOperand(mode);
+	Address addr = decodeAddress(mode);
+
 	if (memoryAndAccumulatorAre8Bit()) {
 		store8(addr, 0);
 	}
