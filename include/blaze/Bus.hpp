@@ -3,6 +3,7 @@
 #include <blaze/CPU.hpp>
 #include <blaze/MemRam.hpp>
 #include <blaze/ROM.hpp>
+#include <blaze/MMIO.hpp>
 
 namespace Blaze
 {
@@ -23,5 +24,10 @@ namespace Blaze
 		Byte read8(Address addr);
 		Word read16(Address addr);
 		Address read24(Address addr);
+
+		void reset();
+
+	private:
+		void findDeviceAndOffset(Address address, MMIODevice*& outDevice, Address& outOffset);
 	};
 }

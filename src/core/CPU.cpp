@@ -93,7 +93,9 @@ static constexpr Blaze::Byte opcodeGetSubopcode(Blaze::Byte opcode) {
 };
 // NOLINTEND(readability-magic-numbers, readability-identifier-length)
 
-void Blaze::CPU::reset(MemRam &memory) {
+void Blaze::CPU::reset(Bus* theBus) {
+	bus = theBus;
+
 	PC = load16(ExceptionVectorAddress::EmulatedRESET); // need to load w/contents of reset vector
 	DBR = PBR = 0x00;
 	A.reset();
@@ -110,9 +112,6 @@ void Blaze::CPU::reset(MemRam &memory) {
 
 	// the processor starts out in emulation mode
 	e = 1;
-
-	_memory = &memory;
-	_memory->reset();
 }
 
 void Blaze::CPU::irq() {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <sstream>
 
 namespace Blaze {
 	// NOLINTBEGIN(readability-magic-numbers, readability-identifier-length, bugprone-easily-swappable-parameters)
@@ -79,6 +80,12 @@ namespace Blaze {
 		auto shiftBits = typeBits - 16;
 		auto unshifted = value & (static_cast<T>(0xffff) << shiftBits);
 		return shift ? (unshifted >> shiftBits) : unshifted;
+	};
+
+	static std::string valueToHexString(uint32_t value) {
+		std::stringstream stream;
+		stream << std::hex << std::nouppercase << value;
+		return stream.str();
 	};
 	// NOLINTEND(readability-magic-numbers, readability-identifier-length, bugprone-easily-swappable-parameters)
 }; // namespace Blaze

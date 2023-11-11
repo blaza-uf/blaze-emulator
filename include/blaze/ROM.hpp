@@ -1,13 +1,14 @@
 #pragma once
 
 #include <blaze/MemTypes.hpp>
+#include <blaze/MMIO.hpp>
 
 #include <string>
 #include <array>
 #include <vector>
 
 namespace Blaze {
-	class ROM {
+	class ROM: public MMIODevice {
 	public:
 		enum class Type: Byte {
 			INVALID,
@@ -64,5 +65,15 @@ namespace Blaze {
 		std::string name() const;
 
 		void load(const std::string& path);
+
+		Byte read8(Address offset) override;
+		Word read16(Address offset) override;
+		Address read24(Address offset) override;
+
+		void write8(Address offset, Byte value) override;
+		void write16(Address offset, Word value) override;
+		void write24(Address offset, Address value) override;
+
+		void reset(Bus* bus) override;
 	};
 } // namespace Blaze

@@ -450,7 +450,6 @@ namespace Blaze {
 		Byte DBR; // data bank
 		Byte PBR; // program bank
 		Byte P; // process status
-		MemRam* _memory; // TODO: Replace direct memory access with Bus r/w
 
 		// the full 24-bit address of the instruction that is *currently executing*
 		//
@@ -587,7 +586,7 @@ namespace Blaze {
 			Y(P, flags::x)
 			{};
 
-		void reset(MemRam &memory);      		// Reset CPU internal state
+		void reset(Bus* theBus);      		// Reset CPU internal state
 		void execute(); 		// Execute the current instruction
 		void clock();                    		// CPU driver
 		Byte read(Address addr);				// Read from the Bus

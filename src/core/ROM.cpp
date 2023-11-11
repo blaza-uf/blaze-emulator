@@ -1,4 +1,5 @@
 #include <blaze/ROM.hpp>
+#include <blaze/util.hpp>
 
 #include <fstream>
 #include <cstring>
@@ -90,4 +91,63 @@ void Blaze::ROM::load(const std::string& path) {
 		_memory.clear();
 		_type = Type::INVALID;
 	}
+};
+
+Blaze::Byte Blaze::ROM::read8(Address offset) {
+	if (_memory.empty()) {
+		// no ROM loaded
+		return 0;
+	}
+
+	if (offset >= _memory.size()) {
+		throw std::runtime_error("Invalid access to ROM (out-of-bounds)");
+	}
+
+	return _memory[offset];
+};
+
+Blaze::Word Blaze::ROM::read16(Address offset) {
+	if (_memory.empty()) {
+		// no ROM loaded
+		return 0;
+	}
+
+	if (offset >= _memory.size()) {
+		throw std::runtime_error("Invalid access to ROM (out-of-bounds)");
+	}
+
+	return concat16(_memory[offset + 1], _memory[offset]);
+};
+
+Blaze::Address Blaze::ROM::read24(Address offset) {
+	if (_memory.empty()) {
+		// no ROM loaded
+		return 0;
+	}
+
+	if (offset >= _memory.size()) {
+		throw std::runtime_error("Invalid access to ROM (out-of-bounds)");
+	}
+
+	return concat24(_memory[offset + 2], _memory[offset + 1], _memory[offset]);
+};
+
+void Blaze::ROM::write8(Address offset, Byte value) {
+	// no-op
+	// this is read-only memory!
+};
+
+void Blaze::ROM::write16(Address offset, Word value) {
+	// no-op
+	// this is read-only memory!
+};
+
+void Blaze::ROM::write24(Address offset, Address value) {
+	// no-op
+	// this is read-only memory!
+};
+
+void Blaze::ROM::reset(Bus* bus) {
+	_memory.clear();
+	_type = Type::INVALID;
 };
