@@ -1,6 +1,7 @@
 #include <blaze/ROM.hpp>
 
 #include <fstream>
+#include <cstring>
 
 // 32 KiB
 static constexpr size_t MIN_ROM_SIZE = 0x8000;
