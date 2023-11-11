@@ -280,6 +280,35 @@ int main(int argc, char** argv) {
 		debugBuffer.push_back(character);
 	};
 
+	if (argc > 1) {
+		std::string path = argv[1];
+		std::stringstream output;
+
+		output << "Got ROM: " << path;
+		output << '\n';
+
+		try {
+			bus.rom.load(path);
+
+			if (bus.rom.type() == Blaze::ROM::Type::INVALID) {
+				output << "Failed to load ROM";
+			} else {
+				output << "Loaded ROM with name: " << bus.rom.name();
+
+				// when a ROM is loaded, we need to reset all components
+				bus.reset();
+
+				executing = true;
+			}
+		} catch (const std::runtime_error& e) {
+			output << "Failed to load ROM:\n" << e.what();
+		}
+
+		output << '\n';
+
+		debugBuffer = output.str();
+	}
+
 	// main event loop
 	while (running) {
 		// process all events for this frame
