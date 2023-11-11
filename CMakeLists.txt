@@ -48,7 +48,7 @@ if(TARGET SDL2::SDL2main)
 	target_link_libraries(blaze PRIVATE SDL2::SDL2main)
 endif()
 
-target_link_libraries(blaze PRIVATE SDL2::SDL2-static)
+target_link_libraries(blaze PRIVATE SDL2::SDL2-static SDL2_ttf::SDL2_ttf-static)
 
 add_executable(blaze-core-tests
 	test/color.cpp

@@ -9,6 +9,8 @@
 #include <map>
 #include <string>
 #include <sstream>
+#include <blaze/Bus.hpp>
+#include <SDL_ttf.h>
 
 // Define SNES key constants
 #define SNES_KEY_UP      0
@@ -152,14 +154,36 @@ static bool openROMDialog(std::string& outPath) {
 };
 #endif
 
+static int createText(const std::string& text, const SDL_Color& color, TTF_Font* font, SDL_Renderer* renderer, SDL_Texture*& outTexture, int& outWidth, int& outHeight) {
+	SDL_Surface* tmpSurface = TTF_RenderText_Solid(font, text.c_str(), color);
+	if (!tmpSurface) {
+		return -1;
+	}
+
+	outTexture = SDL_CreateTextureFromSurface(renderer, tmpSurface);
+	if (!outTexture) {
+		SDL_FreeSurface(tmpSurface);
+		return -1;
+	}
+
+	outWidth = tmpSurface->w;
+	outHeight = tmpSurface->h;
+
+	SDL_FreeSurface(tmpSurface);
+
+	return 0;
+};
+
 int main(int argc, char** argv) {
 	SDL_Window* mainWindow;
 	SDL_Renderer* renderer;
 	SDL_Surface* surface;
 	SDL_Event event;
-    std::map<int, bool> keyboard;
+	std::map<int, bool> keyboard;
 	bool running = true;
 	SDL_SysWMinfo mainWindowInfo;
+	Blaze::Bus bus;
+	TTF_Font* font = nullptr;
 
 #ifdef _WIN32
 	HWND win32MainWindow = nullptr;
@@ -172,6 +196,22 @@ int main(int argc, char** argv) {
 
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to initialize SDL: %s", SDL_GetError());
+		return 1;
+	}
+
+	if (TTF_Init() < 0) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to initialize SDL_ttf: %s", TTF_GetError());
+		return 1;
+	}
+
+#ifdef _WIN32
+	// TODO: fall back to other fonts
+	font = TTF_OpenFont("C:\\Windows\\Fonts\\FiraCode-Regular.ttf", 16);
+#else
+	#warning TODO
+#endif
+	if (!font) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load font: %s", TTF_GetError());
 		return 1;
 	}
 
@@ -228,24 +268,32 @@ int main(int argc, char** argv) {
 	SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
 #endif // _WIN32
 
+	std::string debugBuffer;
+	bus.cpu.putCharacterHook = [&](char character) {
+		debugBuffer.push_back(character);
+	};
+
 	// main event loop
 	while (running) {
-		SDL_PollEvent(&event);
-        int snesKey;
+		// process all events for this frame
+		while (SDL_PollEvent(&event)) {
+			int snesKey;
 
-        switch (event.type) {
-            case SDL_QUIT:
-                // exit if window closed
-				running = false;
-                break;
-            case SDL_KEYDOWN:
-                snesKey = mapSDLToSNES(event.key.keysym.sym);
-                // update emulator state
-                break;
-            case SDL_KEYUP:
-                 snesKey = mapSDLToSNES(event.key.keysym.sym);
-                // update emulator state
-                break;
+			switch (event.type) {
+				case SDL_QUIT:
+					// exit if window closed
+					running = false;
+					break;
+
+				case SDL_KEYDOWN:
+					snesKey = mapSDLToSNES(event.key.keysym.sym);
+					// update emulator state
+					break;
+
+				case SDL_KEYUP:
+					snesKey = mapSDLToSNES(event.key.keysym.sym);
+					// update emulator state
+					break;
 
 #ifdef _WIN32
 			case SDL_SYSWMEVENT:
@@ -292,10 +340,10 @@ int main(int argc, char** argv) {
 				break;
 #endif // _WIN32
 
-
-            default:
-                break;
-        }
+			default:
+				break;
+			}
+		}
 
 		if (!running) {
 			break;
@@ -304,12 +352,38 @@ int main(int argc, char** argv) {
 		// clear the window
 		SDL_SetRenderDrawColor(renderer, Blaze::defaultWindowColor.r, Blaze::defaultWindowColor.g, Blaze::defaultWindowColor.b, Blaze::defaultWindowColor.a);
 		SDL_RenderClear(renderer);
+
+		// execute a single instruction
+		bus.cpu.execute();
+
+		// render the debug buffer
+		{
+			SDL_Rect rect = {
+				0, 0,
+			};
+			SDL_Color color = {
+				// white
+				255, 255, 255,
+			};
+			SDL_Texture* texture = nullptr;
+
+			if (createText(debugBuffer, color, font, renderer, texture, rect.w, rect.h) < 0) {
+				SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create text texture: %s", SDL_GetError());
+				abort();
+			}
+			SDL_RenderCopy(renderer, texture, nullptr, &rect);
+			SDL_DestroyTexture(texture);
+		}
+
 		SDL_RenderPresent(renderer);
 	}
 
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(mainWindow);
 
+	TTF_CloseFont(font);
+
+	TTF_Quit();
 	SDL_Quit();
 
 	return 0;
