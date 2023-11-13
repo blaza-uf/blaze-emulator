@@ -218,8 +218,20 @@ int main(int argc, char** argv) {
 	#warning TODO
 #endif
 	if (!font) {
-		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load font: %s", TTF_GetError());
-		return 1;
+#ifdef _WIN32
+		// try another font
+		font = TTF_OpenFont("C:\\Windows\\Fonts\\consola.ttf", 16);
+		if (!font) {
+#else
+		#warning TODO
+#endif
+			SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load font: %s", TTF_GetError());
+			return 1;
+#ifdef _WIN32
+		}
+#else
+		#warning TODO
+#endif
 	}
 
 	if (SDL_CreateWindowAndRenderer(Blaze::defaultWindowWidth, Blaze::defaultWindowHeight, SDL_WINDOW_RESIZABLE, &mainWindow, &renderer) < 0) {
