@@ -98,10 +98,12 @@ void Blaze::CPU::reset(Bus* theBus) {
 
 	PC = load16(ExceptionVectorAddress::EmulatedRESET); // need to load w/contents of reset vector
 	DBR = PBR = 0x00;
+	DR = 0;
 	A.reset();
 	X.reset();
 	Y.reset();
 	SP = 0x0100;
+	P = 0;
 
 	setFlag(flags::d, false);
 
