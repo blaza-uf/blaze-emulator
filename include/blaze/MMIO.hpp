@@ -3,7 +3,7 @@
 #include <blaze/MemTypes.hpp>
 
 namespace Blaze {
-	class Bus;
+	struct Bus;
 
 	// An abstract class (interface) for memory-mapped I/O devices
 	class MMIODevice {
