@@ -724,9 +724,7 @@ Blaze::Cycles Blaze::CPU::executeBRK() {
 
     // Fetch the interrupt vector for IRQ
     addrAbs = 0xFFFE; // BRK uses the IRQ vector
-    uint16_t low = *bus->read(addrAbs);
-    uint16_t high = *bus->read(addrAbs + 1);
-    PC = (high << 8) | low;
+    PC = load16(addrAbs);
 
     // Set cycles for BRK instruction
     cyclesCountDown = 7;
