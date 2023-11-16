@@ -711,8 +711,7 @@ const Blaze::Byte* Blaze::CPU::currentInstruction() const {
 
 Blaze::Cycles Blaze::CPU::executeBRK() {
 	// Push PC+2 onto the stack
-    bus->write(SP - 1, ((PC + 2) >> 8) & 0xFF);
-    bus->write(SP, (PC + 2) & 0xFF);
+    store16(SP - 1, PC + 2);
     SP -= 2;
 
     // Push processor status onto the stack with the break flag set
