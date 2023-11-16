@@ -28,6 +28,7 @@
 
 #ifdef _WIN32
 	#include <windows.h>
+	#include <windowsx.h>
 	#include <shobjidl.h>
 #endif // _WIN32
 
@@ -45,7 +46,24 @@ namespace Blaze {
 		EditOptions = 4,
 		ViewShowDebugger = 5,
 		HelpHelp = 6,
+
+		DebuggerTextView = 100,
+		DebuggerContinue = 101,
+		DebuggerPause = 102,
+		DebuggerNext = 103,
+		DebuggerInto = 104,
 	};
+
+	static constexpr LPCSTR debuggerWindowClassName = TEXT("Blaze Debugger Window Class");
+	static constexpr int defaultDebuggerWindowWidth = 400;
+	static constexpr int defaultDebuggerWindowHeight = 600;
+	static constexpr int debuggerButtonAreaHeight = 26;
+	static constexpr int debuggerButtonY = 3;
+	static constexpr int debuggerButtonHeight = 20;
+	static constexpr int debuggerButtonXMargin = 5;
+	static constexpr int debuggerButtonYMargin = 3;
+
+	static WNDCLASS debuggerWindowClass = {};
 #endif // _WIN32
 } // namespace Blaze
 
@@ -158,6 +176,81 @@ static bool openROMDialog(std::string& outPath) {
 
 	return true;
 };
+
+static LRESULT CALLBACK debuggerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	static HWND win32DebuggerTextWindow;
+	static HWND continueButton;
+	static HWND pauseButton;
+	static HWND nextButton;
+	static HWND intoButton;
+
+	switch (uMsg) {
+		case WM_CLOSE:
+			ShowWindow(hwnd, SW_HIDE);
+			return 0;
+
+		case WM_CREATE: {
+			auto hInst = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+
+			win32DebuggerTextWindow = CreateWindowEx(0, TEXT("Edit"), nullptr, WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_HSCROLL | ES_LEFT | ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_READONLY, 0, Blaze::debuggerButtonAreaHeight, 0, 0, hwnd, (HMENU)Blaze::MenuID::DebuggerTextView, hInst, nullptr);
+			if (!win32DebuggerTextWindow) {
+				abort();
+			}
+
+			continueButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Continue"), WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 0, Blaze::debuggerButtonY, 0, Blaze::debuggerButtonHeight, hwnd, (HMENU)Blaze::MenuID::DebuggerContinue, hInst, nullptr);
+			pauseButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Pause"), WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 0, Blaze::debuggerButtonY, 0, Blaze::debuggerButtonHeight, hwnd, (HMENU)Blaze::MenuID::DebuggerPause, hInst, nullptr);
+			nextButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Next"), WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 0, Blaze::debuggerButtonY, 0, Blaze::debuggerButtonHeight, hwnd, (HMENU)Blaze::MenuID::DebuggerNext, hInst, nullptr);
+			intoButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Step Into"), WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 0, Blaze::debuggerButtonY, 0, Blaze::debuggerButtonHeight, hwnd, (HMENU)Blaze::MenuID::DebuggerInto, hInst, nullptr);
+
+			Edit_SetText(win32DebuggerTextWindow, TEXT("Test!"));
+
+			return 0;
+		}
+
+		case WM_SIZE: {
+			auto width = LOWORD(lParam);
+			auto height = HIWORD(lParam);
+
+			auto buttonWidth = (std::max<decltype(width)>(width, Blaze::debuggerButtonXMargin * 5) - (Blaze::debuggerButtonXMargin * 5)) / 4;
+
+			MoveWindow(win32DebuggerTextWindow, 0, Blaze::debuggerButtonAreaHeight, width, height - Blaze::debuggerButtonAreaHeight, TRUE);
+			MoveWindow(continueButton, Blaze::debuggerButtonXMargin * 1 + buttonWidth * 0, Blaze::debuggerButtonY, buttonWidth, Blaze::debuggerButtonHeight, TRUE);
+			MoveWindow(pauseButton, Blaze::debuggerButtonXMargin * 2 + buttonWidth * 1, Blaze::debuggerButtonY, buttonWidth, Blaze::debuggerButtonHeight, TRUE);
+			MoveWindow(nextButton, Blaze::debuggerButtonXMargin * 3  + buttonWidth * 2, Blaze::debuggerButtonY, buttonWidth, Blaze::debuggerButtonHeight, TRUE);
+			MoveWindow(intoButton, Blaze::debuggerButtonXMargin * 4  + buttonWidth * 3, Blaze::debuggerButtonY, buttonWidth, Blaze::debuggerButtonHeight, TRUE);
+			return 0;
+		}
+
+		case WM_COMMAND: {
+			switch (LOWORD(wParam)) {
+				case Blaze::DebuggerContinue:
+				case Blaze::DebuggerPause:
+				case Blaze::DebuggerNext:
+				case Blaze::DebuggerInto:
+					if (HIWORD(wParam) == BN_CLICKED) {
+						MessageBox(nullptr, TEXT("You clicked a button!"), TEXT("It works"), 0);
+					}
+					break;
+			}
+
+			return 0;
+		}
+
+		case WM_PAINT: {
+			PAINTSTRUCT ps;
+			HDC hdc = BeginPaint(hwnd, &ps);
+
+			FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
+
+			EndPaint(hwnd, &ps);
+
+			return 0;
+		}
+
+		default:
+			return DefWindowProc(hwnd, uMsg, wParam, lParam);
+	}
+};
 #endif
 
 static int createText(const std::string& text, const SDL_Color& color, TTF_Font* font, SDL_Renderer* renderer, SDL_Texture*& outTexture, int& outWidth, int& outHeight) {
@@ -194,6 +287,7 @@ int main(int argc, char** argv) {
 
 #ifdef _WIN32
 	HWND win32MainWindow = nullptr;
+	HWND win32DebuggerWindow = nullptr;
 	HMENU mainMenu = nullptr;
 	HMENU fileMenu = nullptr;
 	HMENU editMenu = nullptr;
@@ -285,6 +379,23 @@ int main(int argc, char** argv) {
 
 	// enable Win32 events in the SDL event loop
 	SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+
+	// set up the debugger window
+
+	Blaze::debuggerWindowClass.lpfnWndProc = debuggerWindowProc;
+	Blaze::debuggerWindowClass.hInstance = mainWindowInfo.info.win.hinstance;
+	Blaze::debuggerWindowClass.lpszClassName = Blaze::debuggerWindowClassName;
+
+	RegisterClass(&Blaze::debuggerWindowClass);
+
+	win32DebuggerWindow = CreateWindowEx(0, Blaze::debuggerWindowClassName, TEXT("Debugger Window"), WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, Blaze::defaultDebuggerWindowWidth, Blaze::defaultDebuggerWindowHeight, nullptr, nullptr, Blaze::debuggerWindowClass.hInstance, nullptr);
+	if (win32DebuggerWindow == nullptr) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create debugger window: %lu", GetLastError());
+		SDL_DestroyRenderer(renderer);
+		SDL_DestroyWindow(mainWindow);
+		SDL_Quit();
+		return 1;
+	}
 #endif // _WIN32
 
 	std::string debugBuffer;
@@ -397,7 +508,7 @@ int main(int argc, char** argv) {
 						} break;
 
 						case Blaze::MenuID::ViewShowDebugger: {
-							// TODO
+							ShowWindow(win32DebuggerWindow, SW_SHOW);
 						} break;
 
 						case Blaze::MenuID::HelpHelp: {
