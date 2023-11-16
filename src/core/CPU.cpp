@@ -995,9 +995,8 @@ Blaze::Cycles Blaze::CPU::executeREP() {
 Blaze::Cycles Blaze::CPU::executeRTI() {
     P = *bus->read(SP++);
     // Pop the program counter from the stack
-    uint16_t low = *bus->read(SP++);
-    uint16_t high = *bus->read(SP++);
-    PC = (high << 8) | low;
+    PC = load16(SP + 1);
+    SP += 2;
 	setFlag(b, false);
 	return 0;
 };
