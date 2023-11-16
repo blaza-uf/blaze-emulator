@@ -993,7 +993,8 @@ Blaze::Cycles Blaze::CPU::executeREP() {
 };
 
 Blaze::Cycles Blaze::CPU::executeRTI() {
-    P = *bus->read(SP++);
+    SP++;
+    P = load8(SP);
     // Pop the program counter from the stack
     PC = load16(SP + 1);
     SP += 2;
