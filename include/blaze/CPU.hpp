@@ -5,6 +5,7 @@
 #include <limits>
 #include <array>
 #include <unordered_map>
+#include <functional>
 
 namespace Blaze {
 	using ClockTicks = uint32_t;
@@ -293,6 +294,34 @@ namespace Blaze {
 			INVALID = std::numeric_limits<Byte>::max(),
 		};
 
+		// use enum within namespace instead of `enum class` because we *want* implicit conversion to an integer here
+		struct ExceptionVectorAddress {
+			enum IgnoreMe: Address {
+				NativeCOP   = 0xffe4,
+				NativeBRK   = 0xffe6,
+				NativeABORT = 0xffe8,
+				NativeNMI   = 0xffea,
+				// 0xffec is reserved
+				NativeIRQ   = 0xffee,
+
+				EmulatedCOP   = 0xfff4,
+				// 0xfff6 is reserved
+				EmulatedABORT = 0xfff8,
+				EmulatedNMI   = 0xfffa,
+				EmulatedRESET = 0xfffc,
+				// yes, these are the same address
+				EmulatedIRQ   = 0xfffe,
+				EmulatedBRK   = 0xfffe,
+			};
+		};
+
+		struct CustomWDMOpcodes {
+			enum IgnoreMe: Byte {
+				// Prints the character from the low 8 bits of the accumulator
+				PutChararacter = 0x80,
+			};
+		};
+
 		struct Instruction {
 			Opcode opcode = Opcode::INVALID;
 			Byte size = 0;
@@ -343,27 +372,29 @@ namespace Blaze {
 
 		static const std::unordered_map<Byte, Instruction> INSTRUCTIONS_WITH_NO_PATTERN;
 
-		enum flags: Byte {
-			// Process Status Flags
-			c = (1 << 0), // carry
-			z = (1 << 1), // zero
-			i = (1 << 2), // interrupt disable
-			d = (1 << 3), // decimal
-			x = (1 << 4), // index register width
-			b = (1 << 4), // break
-			m = (1 << 5), // accumulator & memory width
-			v = (1 << 6), // overflow
-			n = (1 << 7), // negative
+		struct flags {
+			enum IngoreMe: Byte {
+				// Process Status Flags
+				c = (1 << 0), // carry
+				z = (1 << 1), // zero
+				i = (1 << 2), // interrupt disable
+				d = (1 << 3), // decimal
+				x = (1 << 4), // index register width
+				b = (1 << 4), // break
+				m = (1 << 5), // accumulator & memory width
+				v = (1 << 6), // overflow
+				n = (1 << 7), // negative
+			};
 		};
 
 		class Register {
 		private:
 			Word _value = 0;
-			flags& _flags;
-			flags _mask;
+			Byte& _flags;
+			Byte _mask;
 
 		public:
-			Register(flags& cpuFlags, flags eightBitMask):
+			Register(Byte& cpuFlags, Byte eightBitMask):
 				_flags(cpuFlags),
 				_mask(eightBitMask)
 				{};
@@ -409,8 +440,6 @@ namespace Blaze {
 			Word operator^(Word rhs) const;
 		};
 
-		flags f;
-
 		Byte e = 1; //emulation mode. separate from p register flags
 
 		Register A; // accumulator
@@ -421,10 +450,17 @@ namespace Blaze {
 		Byte DBR; // data bank
 		Byte PBR; // program bank
 		Byte P; // process status
-		MemRam* _memory; // TODO: Replace direct memory access with Bus r/w
+
+		// the full 24-bit address of the instruction that is *currently executing*
+		//
+		// this is NOT the same as the PC; the PC is automatically incremented to the next instruction
+		// BEFORE the current instruction starts executing.
+		Address executingPC;
 
 		// System Bus
 		Bus *bus = nullptr;
+
+		std::function<void(char)> putCharacterHook = nullptr;
 
 		Byte load8(Address address) const;
 		Byte load8(Byte bank, Word addressLow) const;
@@ -447,17 +483,15 @@ namespace Blaze {
 		// this function is meant to be used by simple instructions that only need to load data from the
 		// memory operands (which is true for most instructions). if you need to both read from and write to
 		// a memory operand, you should use `decodeAddress` + `load16` instead.
-		Word loadOperand(AddressingMode addressingMode) const;
+		Word loadOperand(AddressingMode addressingMode, bool use8BitImmediate) const;
 
 		// decodes the current instruction based on the given opcode, returning the decoded instruction information
-		Instruction decodeInstruction(Byte opcode) const;
+		Instruction decodeInstruction(Byte inst0) const;
 
 		// executes the current (pre-decoded) instruction with the given information
 		Cycles executeInstruction(const Instruction& info);
 
 		Cycles invalidInstruction();
-
-		const Byte* currentInstruction() const;
 
 		Cycles executeBRK();
 		Cycles executeBRL();
@@ -547,12 +581,12 @@ namespace Blaze {
 		Cycles executeBRA(ConditionCode condition, bool passConditionIfBitSet);
 
 		CPU():
-			A(f, flags::m),
-			X(f, flags::x),
-			Y(f, flags::x)
+			A(P, flags::m),
+			X(P, flags::x),
+			Y(P, flags::x)
 			{};
 
-		void reset(MemRam &memory);      		// Reset CPU internal state
+		void reset(Bus* theBus);      		// Reset CPU internal state
 		void execute(); 		// Execute the current instruction
 		void clock();                    		// CPU driver
 		Byte read(Address addr);				// Read from the Bus
@@ -561,7 +595,6 @@ namespace Blaze {
 		// Interrupt Handling
 		Cycles cyclesCountDown = 0;					// Counts how many cycles the instruction has remaining
 		ClockTicks clockCount = 0;					// A global accumulation of the number of clocks
-		Address addrAbs = 0x00000000;				// The address from last visit
 		void irq();
 		void nmi();
 		void abort();
@@ -587,6 +620,10 @@ namespace Blaze {
 
 		bool indexRegistersAre8Bit() const {
 			return getFlag(flags::x);
+		};
+
+		bool usingEmulationMode() const {
+			return e != 0;
 		};
 	};
 } // namespace Blaze

@@ -1,3 +1,5 @@
+lorom
+
 ; put-character (from low 8-bits of accumulator)
 macro blaze_pch()
 	wdm #$80
@@ -13,13 +15,24 @@ main:
 	rep #$ff
 	sep #$04
 
+	; set up the stack pointer
+	lda #$01ff
+	tcs
+
 	ldx #hello_world_string
 	jsr print_string
 
 	jmp hang
 
 ; input: string address in X register
+; must be in native mode with 16-bit index registers
 print_string:
+	.init:
+		; save processor status
+		php
+		; use 8-bit memory and accumulator
+		sep #$20
+
 	.loop:
 		; load the next character
 		lda 0, x
@@ -38,6 +51,9 @@ print_string:
 		jmp .loop
 
 	.done:
+		; restore processor status
+		plp
+		; return to caller
 		rts
 
 native_cop:
@@ -55,7 +71,55 @@ hang:
 	jmp hang
 
 hello_world_string:
-	db "Hello, world!\n", 0
+	; $0A = newline
+	db "Hello, world!", $0A, 0
+
+rom_header:
+	org $00ffc0
+
+	; PC = $00ffc0
+	.title:
+		db "HELLO WORLD SAMPLE"
+		padbyte $20 ; ASCII $20 = space
+		pad $00ffd5
+
+	; PC = $00ffd5
+	.mapping_mode:
+		db $20 ; LoROM
+
+	; PC = $00ffd6
+	.type:
+		db 0 ; ROM only
+
+	; PC = $00ffd7
+	.size:
+		db 15 ; 32 KiB -> log2(32) -> 5
+
+	; PC = $00ffd8
+	.sram_size:
+		db 0 ; 1 KiB -> log2(1) -> 0, but we actually don't want/need SRAM
+
+	; PC = $00ffd9
+	.destination_code:
+		db 1 ; USA
+
+	; PC = $00ffda
+	.fixed_value:
+		db $33 ; must always be $33
+
+	; PC = $00ffdb
+	.version
+		db 0
+
+	; the checksum values are supposed to be updated by the assembler (asar)
+
+	; PC = $00ffdc
+	.checksum_complement:
+		db 0
+
+	; PC = $00ffde
+	.checksum:
+		db 0
 
 native_vectors:
 	org $00ffe4
