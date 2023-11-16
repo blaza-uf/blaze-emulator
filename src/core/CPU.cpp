@@ -716,7 +716,7 @@ Blaze::Cycles Blaze::CPU::executeBRK() {
 
     // Push processor status onto the stack with the break flag set
     setFlag(b, 1);
-    bus->write(SP, P | 0x10);
+    store8(SP, P | 0x10);
     SP--;
 
     // Disable further interrupts
