@@ -38,7 +38,7 @@ print_string:
 		lda 0, x
 
 		; if it's zero (a null terminator), we're done
-		cpx #0
+		cmp #0
 		beq .done
 
 		; print the character
