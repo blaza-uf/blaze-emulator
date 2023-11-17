@@ -982,7 +982,7 @@ Blaze::Cycles Blaze::CPU::executeRTI() {
     // Pop the program counter from the stack
     PC = load16(SP + 1);
     SP += 2;
-	setFlag(b, false);
+	setFlag(flags::b, false);
 	return 0;
 };
 
