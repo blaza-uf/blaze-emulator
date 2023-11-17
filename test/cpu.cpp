@@ -271,9 +271,6 @@ static constexpr std::array<Instruction, 256> OPCODE_INFO {
 };
 
 TEST_CASE("Instruction decoding", "[cpu]") {
-	MemRam ram;
-	Bus bus;
-
 	Byte opcodeByte;
 	Instruction expectedInfo;
 	std::tie(opcodeByte, expectedInfo) = GENERATE(map([](size_t const& index) { return std::make_pair(index, OPCODE_INFO[index]); }, range(0, 256)));
@@ -283,7 +280,7 @@ TEST_CASE("Instruction decoding", "[cpu]") {
 	std::string resultHex(asHex.str());
 
 	DYNAMIC_SECTION("Decode instruction 0x" << resultHex) {
-		auto decodedInfo = bus.cpu.decodeInstruction(opcodeByte);
+		auto decodedInfo = CPU::decodeInstruction(opcodeByte, true);
 
 		// the static_casts below are for proper integer output for test assertions
 

@@ -6,6 +6,7 @@
 #include <array>
 #include <unordered_map>
 #include <functional>
+#include <string>
 
 namespace Blaze {
 	using ClockTicks = uint32_t;
@@ -294,6 +295,95 @@ namespace Blaze {
 			INVALID = std::numeric_limits<Byte>::max(),
 		};
 
+		static constexpr std::array<const char*, static_cast<Byte>(Opcode::BRA) + 1> OPCODE_NAMES = {
+			"BRK",
+			"BRL",
+			"CLC",
+			"CLD",
+			"CLI",
+			"CLV",
+			"COP",
+			"DEX",
+			"DEY",
+			"INX",
+			"INY",
+			"JML",
+			"JSL",
+			"MVN",
+			"MVP",
+			"NOP",
+			"PEA",
+			"PEI",
+			"PER",
+			"PHA",
+			"PHB",
+			"PHD",
+			"PHK",
+			"PHP",
+			"PHX",
+			"PHY",
+			"PLA",
+			"PLB",
+			"PLD",
+			"PLP",
+			"PLX",
+			"PLY",
+			"REP",
+			"RTI",
+			"RTL",
+			"RTS",
+			"SEC",
+			"SED",
+			"SEI",
+			"SEP",
+			"STP",
+			"TAX",
+			"TAY",
+			"TCD",
+			"TCS",
+			"TDC",
+			"TSC",
+			"TSX",
+			"TXA",
+			"TXS",
+			"TXY",
+			"TYA",
+			"TYX",
+			"WAI",
+			"WDM",
+			"XBA",
+			"XCE",
+
+			"ADC",
+			"AND",
+			"ASL",
+			"BIT",
+			"CMP",
+			"CPX",
+			"CPY",
+			"DEC",
+			"EOR",
+			"INC",
+			"JMP",
+			"JSR",
+			"LDA",
+			"LDX",
+			"LDY",
+			"LSR",
+			"ORA",
+			"ROL",
+			"ROR",
+			"SBC",
+			"STA",
+			"STX",
+			"STY",
+			"STZ",
+			"TRB",
+			"TSB",
+
+			"BRA",
+		};
+
 		// use enum within namespace instead of `enum class` because we *want* implicit conversion to an integer here
 		struct ExceptionVectorAddress {
 			enum IgnoreMe: Address {
@@ -368,6 +458,12 @@ namespace Blaze {
 			inline operator bool() const {
 				return valid();
 			};
+		};
+
+		struct DisassembledInstruction {
+			Instruction information;
+			std::string code;
+			Address address;
 		};
 
 		static const std::unordered_map<Byte, Instruction> INSTRUCTIONS_WITH_NO_PATTERN;
@@ -486,7 +582,8 @@ namespace Blaze {
 		Word loadOperand(AddressingMode addressingMode, bool use8BitImmediate) const;
 
 		// decodes the current instruction based on the given opcode, returning the decoded instruction information
-		Instruction decodeInstruction(Byte inst0) const;
+		static Instruction decodeInstruction(Byte inst0, bool memoryAndAccumulatorAre8Bit);
+		static std::vector<DisassembledInstruction> disassemble(Bus& bus, Address address, size_t instructionCount, bool memoryAndAccumulatorAre8BitOnStart, bool indexRegistersAre8BitOnStart, bool usingEmulationModeOnStart, bool carryOnStart);
 
 		// executes the current (pre-decoded) instruction with the given information
 		Cycles executeInstruction(const Instruction& info);
