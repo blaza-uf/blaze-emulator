@@ -702,7 +702,7 @@ Blaze::Cycles Blaze::CPU::executeBRK() {
     SP -= 2;
 
     // Push processor status onto the stack with the break flag set
-    setFlag(b, 1);
+    setFlag(flags::b, true);
     store8(SP, P | 0x10);
     SP--;
 
