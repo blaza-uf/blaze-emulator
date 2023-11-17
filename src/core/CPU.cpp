@@ -707,7 +707,7 @@ Blaze::Cycles Blaze::CPU::executeBRK() {
     SP--;
 
     // Disable further interrupts
-    setFlag(i, 1);
+    setFlag(flags::i, true);
 
     // Fetch the interrupt vector for IRQ
     addrAbs = 0xFFFE; // BRK uses the IRQ vector
