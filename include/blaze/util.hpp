@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <sstream>
+#include <iomanip>
 
 namespace Blaze {
 	// NOLINTBEGIN(readability-magic-numbers, readability-identifier-length, bugprone-easily-swappable-parameters)
@@ -82,9 +83,19 @@ namespace Blaze {
 		return shift ? (unshifted >> shiftBits) : unshifted;
 	};
 
-	static std::string valueToHexString(uint32_t value) {
+	static std::string valueToHexString(uint32_t value, size_t padToLength = 0, std::string prefix = "") {
 		std::stringstream stream;
-		stream << std::hex << std::nouppercase << value;
+		stream << prefix << std::hex << std::nouppercase << std::setfill('0') << std::setw(padToLength) << value;
+		return stream.str();
+	};
+
+	static std::string valueToSignedHexString(int32_t value, size_t padToLength = 0, std::string prefix = "") {
+		std::stringstream stream;
+		if (value < 0) {
+			stream << "-";
+			value *= -1;
+		}
+		stream << prefix << std::hex << std::nouppercase << std::setfill('0') << std::setw(padToLength) << value;
 		return stream.str();
 	};
 	// NOLINTEND(readability-magic-numbers, readability-identifier-length, bugprone-easily-swappable-parameters)

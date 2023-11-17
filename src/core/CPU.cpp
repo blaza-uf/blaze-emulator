@@ -214,7 +214,7 @@ void Blaze::CPU::execute() {
 	executingPC = concat24(PBR, PC);
 
 	// decode instruction and get info (e.g. # of cycles to run, instruction size)
-	auto info = decodeInstruction(load8(executingPC));
+	auto info = decodeInstruction(load8(executingPC), memoryAndAccumulatorAre8Bit());
 
 	// the PC is always incremented to the next instruction before the current instruction starts executing
 	PC += info.size;
@@ -335,11 +335,9 @@ Blaze::Address Blaze::CPU::decodeAddress(AddressingMode mode) const {
 		case AddressingMode::Direct:
 			return concat24(0, DR + load8(addressStart));
 		case AddressingMode::ProgramCounterRelativeLong:
-			// `PC + 3` since the PC used for the calculation is the address of the *next* instruction
-			return static_cast<uint16_t>(static_cast<int16_t>(PC + 3) + static_cast<int16_t>(load16(addressStart)));
+			return static_cast<uint16_t>(static_cast<int16_t>(PC) + static_cast<int16_t>(load16(addressStart)));
 		case AddressingMode::ProgramCounterRelative:
-			// ditto
-			return static_cast<uint16_t>(static_cast<int16_t>(PC + 2) + static_cast<int8_t>(load8(addressStart)));
+			return static_cast<uint16_t>(static_cast<int16_t>(PC) + static_cast<int8_t>(load8(addressStart)));
 		case AddressingMode::StackRelative:
 			return concat24(0, SP + load8(addressStart));
 		case AddressingMode::StackRelativeIndirectIndexed:
@@ -371,7 +369,7 @@ Blaze::Word Blaze::CPU::loadOperand(AddressingMode addressingMode, bool use8BitI
 
 // special thanks to https://llx.com/Neil/a2/opcodes.html for some wisdom on how to intelligently decode the instructions
 // (without having a giant switch statement)
-Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0) const {
+Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0, bool memoryAndAccumulatorAre8Bit) {
 	// before doing any smart decoding, we first do some simple opcode comparisons.
 	// there are some instructions that only require a single byte (their opcode).
 	// then there are those instructions that require multiple bytes, but have no
@@ -422,7 +420,7 @@ Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0) const {
 				// on the CPU flags.
 				//
 				// when the `m` flag is unset, it takes up 3 bytes instead of 2.
-				instructionSize = !getFlag(flags::m) ? 3 : 2;
+				instructionSize = !memoryAndAccumulatorAre8Bit ? 3 : 2;
 			}
 
 			switch (opcode) {
@@ -491,7 +489,7 @@ Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0) const {
 
 			if (instructionSize == 0) {
 				// same as for Group 1 instructions
-				instructionSize = !getFlag(flags::m) ? 3 : 2;
+				instructionSize = !memoryAndAccumulatorAre8Bit ? 3 : 2;
 			}
 
 			switch (opcode) {
@@ -540,7 +538,7 @@ Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0) const {
 
 			if (instructionSize == 0) {
 				// same as for Group 1 instructions
-				instructionSize = !getFlag(flags::m) ? 3 : 2;
+				instructionSize = !memoryAndAccumulatorAre8Bit ? 3 : 2;
 			}
 
 			switch (opcode) {
@@ -576,7 +574,7 @@ Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0) const {
 
 			if (instructionSize == 0) {
 				// same as for Group 1 instructions
-				instructionSize = !getFlag(flags::m) ? 3 : 2;
+				instructionSize = !memoryAndAccumulatorAre8Bit ? 3 : 2;
 			}
 
 			switch (opcode) {
@@ -595,6 +593,235 @@ Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0) const {
 		default:
 			return Instruction();
 	}
+};
+
+std::vector<Blaze::CPU::DisassembledInstruction> Blaze::CPU::disassemble(Bus& bus, Address address, size_t instructionCount, bool memoryAndAccumulatorAre8Bit, bool indexRegistersAre8Bit, bool usingEmulationMode, bool carry) {
+	std::vector<DisassembledInstruction> instructions;
+
+	while (instructionCount > 0) {
+		Byte inst0;
+		DisassembledInstruction instruction;
+		bool using8BitImmediate = false;
+		std::string operand;
+
+		try {
+			inst0 = bus.read8(address);
+		} catch (...) {
+			break;
+		}
+
+		instruction.information = decodeInstruction(inst0, memoryAndAccumulatorAre8Bit);
+
+		if (instruction.information.opcode == Opcode::INVALID) {
+			break;
+		}
+
+		switch (instruction.information.opcode) {
+			case Opcode::REP:
+			case Opcode::SEP:
+			case Opcode::WDM:
+				using8BitImmediate = true;
+				break;
+
+			case Opcode::ADC:
+			case Opcode::AND:
+			case Opcode::BIT:
+			case Opcode::CMP:
+			case Opcode::EOR:
+			case Opcode::LDA:
+			case Opcode::ORA:
+			case Opcode::SBC:
+				using8BitImmediate = memoryAndAccumulatorAre8Bit;
+				break;
+
+			case Opcode::CPX:
+			case Opcode::CPY:
+			case Opcode::LDX:
+			case Opcode::LDY:
+				using8BitImmediate = indexRegistersAre8Bit;
+				break;
+
+			default:
+				break;
+		}
+
+		if (instruction.information.opcode == Opcode::BRA) {
+			instruction.information.addressingMode = AddressingMode::ProgramCounterRelative;
+		} else if (instruction.information.opcode == Opcode::BRL) {
+			instruction.information.addressingMode = AddressingMode::ProgramCounterRelativeLong;
+		}
+
+		switch (instruction.information.addressingMode) {
+			case AddressingMode::Absolute:
+				operand = valueToHexString(bus.read16(address + 1), 4, "$");
+				break;
+			case AddressingMode::AbsoluteIndexedIndirect:
+				operand = "(" + valueToHexString(bus.read16(address + 1), 4, "$") + ", X)";
+				break;
+			case AddressingMode::AbsoluteIndexedX:
+				operand = valueToHexString(bus.read16(address + 1), 4, "$") + ", X";
+				break;
+			case AddressingMode::AbsoluteIndexedY:
+				operand = valueToHexString(bus.read16(address + 1), 4, "$") + ", Y";
+				break;
+			case AddressingMode::AbsoluteIndirect:
+				operand = "(" + valueToHexString(bus.read16(address + 1), 4, "$") + ")";
+				break;
+			case AddressingMode::AbsoluteLongIndexedX:
+				operand = valueToHexString(bus.read24(address + 1), 6, "$") + ", X";
+				break;
+			case AddressingMode::AbsoluteLong:
+				operand = valueToHexString(bus.read24(address + 1), 6, "$");
+				break;
+			case AddressingMode::Accumulator:
+				operand = "A";
+				break;
+			case AddressingMode::BlockMove:
+				operand = valueToHexString(bus.read8(address + 2), 2, "$") + ", " + valueToHexString(bus.read8(address + 1), 2, "$");
+				break;
+			case AddressingMode::DirectIndexedIndirect:
+				operand = "(" + valueToHexString(bus.read8(address + 1), 2, "$") + ", X)";
+				break;
+			case AddressingMode::DirectIndexedX:
+				operand = valueToHexString(bus.read8(address + 1), 2, "$") + ", X";
+				break;
+			case AddressingMode::DirectIndexedY:
+				operand = valueToHexString(bus.read8(address + 1), 2, "$") + ", Y";
+				break;
+			case AddressingMode::DirectIndirectIndexed:
+				operand = "(" + valueToHexString(bus.read8(address + 1), 2, "$") + "), Y";
+				break;
+			case AddressingMode::DirectIndirectLongIndexed:
+				operand = "[" + valueToHexString(bus.read8(address + 1), 2, "$") + "], Y";
+				break;
+			case AddressingMode::DirectIndirectLong:
+				operand = "[" + valueToHexString(bus.read8(address + 1), 2, "$") + "]";
+				break;
+			case AddressingMode::DirectIndirect:
+				operand = "(" + valueToHexString(bus.read8(address + 1), 2, "$") + ")";
+				break;
+			case AddressingMode::Direct:
+				operand = valueToHexString(bus.read8(address + 1), 2, "$");
+				break;
+			case AddressingMode::Immediate:
+				operand = "#" + valueToHexString(using8BitImmediate ? bus.read8(address + 1) : bus.read16(address + 1), using8BitImmediate ? 2 : 4, "$");
+				break;
+			case AddressingMode::ProgramCounterRelativeLong:
+				operand = valueToSignedHexString(bus.read16(address + 1), 4, "$");
+				break;
+			case AddressingMode::ProgramCounterRelative:
+				operand = valueToSignedHexString(bus.read8(address + 1), 2, "$");
+				break;
+			case AddressingMode::StackRelative:
+				operand = valueToHexString(bus.read8(address + 1), 2, "$") + ", S";
+				break;
+			case AddressingMode::StackRelativeIndirectIndexed:
+				operand = "(" + valueToHexString(bus.read8(address + 1), 2, "$") + ", S), Y";
+				break;
+
+			case AddressingMode::Implied:
+			case AddressingMode::Stack:
+			default:
+				break;
+		}
+
+		// update flags that affect disassembly
+		//
+		// NOTE: this is not entirely accurate because some instructions may e.g. modify the carry flag and then `XCE` may be called
+		switch (instruction.information.opcode) {
+			case Opcode::CLC:
+				carry = false;
+				break;
+			case Opcode::SEC:
+				carry = true;
+				break;
+
+			case Opcode::XCE: {
+				bool tmp = carry;
+				carry = usingEmulationMode;
+				usingEmulationMode = tmp;
+				if (usingEmulationMode) {
+					memoryAndAccumulatorAre8Bit = true;
+					indexRegistersAre8Bit = true;
+				}
+			} break;
+
+			case Opcode::PLP:
+				if (usingEmulationMode) {
+					memoryAndAccumulatorAre8Bit = true;
+					indexRegistersAre8Bit = true;
+				}
+				break;
+
+			case Opcode::SEP: {
+				Byte setMask = bus.read8(address + 1);
+
+				if ((setMask & flags::m) != 0) {
+					memoryAndAccumulatorAre8Bit = true;
+				}
+				if ((setMask & flags::x) != 0) {
+					indexRegistersAre8Bit = true;
+				}
+				if ((setMask & flags::c) != 0) {
+					carry = true;
+				}
+
+				if (usingEmulationMode) {
+					memoryAndAccumulatorAre8Bit = true;
+					indexRegistersAre8Bit = true;
+				}
+			} break;
+
+			case Opcode::REP: {
+				Byte clearMask = bus.read8(address + 1);
+
+				if ((clearMask & flags::m) != 0) {
+					memoryAndAccumulatorAre8Bit = false;
+				}
+				if ((clearMask & flags::x) != 0) {
+					indexRegistersAre8Bit = false;
+				}
+				if ((clearMask & flags::c) != 0) {
+					carry = false;
+				}
+
+				if (usingEmulationMode) {
+					memoryAndAccumulatorAre8Bit = true;
+					indexRegistersAre8Bit = true;
+				}
+			} break;
+
+			default:
+				break;
+		}
+
+		instruction.code = OPCODE_NAMES[static_cast<Byte>(instruction.information.opcode)];
+
+		if (instruction.information.opcode == Opcode::BRA) {
+			switch (instruction.information.condition) {
+				case ConditionCode::Carry:    instruction.code = instruction.information.passConditionIfBitSet ? "BCS" : "BCC"; break;
+				case ConditionCode::Zero:     instruction.code = instruction.information.passConditionIfBitSet ? "BEQ" : "BNQ"; break;
+				case ConditionCode::Negative: instruction.code = instruction.information.passConditionIfBitSet ? "BMI" : "BPL"; break;
+				case ConditionCode::Overflow: instruction.code = instruction.information.passConditionIfBitSet ? "BVS" : "BVC"; break;
+
+				default:
+					break;
+			}
+		}
+
+		if (!operand.empty()) {
+			instruction.code += " ";
+			instruction.code += operand;
+		}
+
+		instruction.address = address;
+
+		address += instruction.information.size;
+		--instructionCount;
+		instructions.push_back(instruction);
+	}
+
+	return instructions;
 };
 
 Blaze::Cycles Blaze::CPU::executeInstruction(const Instruction& info) {
