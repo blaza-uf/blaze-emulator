@@ -937,8 +937,8 @@ Blaze::Cycles Blaze::CPU::executeBRK() {
     setFlag(flags::i, true);
 
     // Fetch the interrupt vector for IRQ
-    addrAbs = 0xFFFE; // BRK uses the IRQ vector
-    PC = load16(addrAbs);
+    // BRK uses the IRQ vector
+    PC = load16(usingEmulationMode() ? ExceptionVectorAddress::EmulatedIRQ : ExceptionVectorAddress::NativeIRQ);
 
     // Set cycles for BRK instruction
     cyclesCountDown = 7;
