@@ -602,8 +602,8 @@ namespace Blaze {
 		bool waitingForInterrupt = false;			// CPU is waiting for interrupt
 		bool stopped = false;						// CPU is stopped
 
-		bool getFlag(flags f) const;
-		void setFlag(flags f, bool s);
+		bool getFlag(Byte f) const;
+		void setFlag(Byte f, bool s);
 
 		Byte getCarry() const {
 			return getFlag(flags::c) ? 1 : 0;
