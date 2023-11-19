@@ -971,7 +971,11 @@ Blaze::Cycles Blaze::CPU::executeCLV() {
 };
 
 Blaze::Cycles Blaze::CPU::executeCOP() {
-	// TODO
+	Byte coprocessorInstruction = loadOperand(AddressingMode::Immediate, true);
+
+	// this instruction is used to give commands to coprocessors located on the cartridge along with the game in the ROM.
+	// for now, we don't support this, so just ignore it.
+
 	return 0;
 };
 
@@ -1020,12 +1024,39 @@ Blaze::Cycles Blaze::CPU::executeJSL() {
 };
 
 Blaze::Cycles Blaze::CPU::executeMVN() {
-	// TODO
+	auto dstBank = load8(executingPC + 1);
+	auto srcBank = load8(executingPC + 2);
+
+	DBR = dstBank;
+
+	do {
+		auto srcVal = load8(srcBank, X.load());
+		store8(dstBank, Y.load(), srcVal);
+
+		X += 1;
+		Y += 1;
+		A.forceStoreFull(A.forceLoadFull() - 1);
+	} while (A.forceLoadFull() == 0xffff);
+
 	return 0;
 };
 
+// exactly the same as MVN, except we decrement X and Y instead of incrementing
 Blaze::Cycles Blaze::CPU::executeMVP() {
-	// TODO
+	auto dstBank = load8(executingPC + 1);
+	auto srcBank = load8(executingPC + 2);
+
+	DBR = dstBank;
+
+	do {
+		auto srcVal = load8(srcBank, X.load());
+		store8(dstBank, Y.load(), srcVal);
+
+		X -= 1;
+		Y -= 1;
+		A.forceStoreFull(A.forceLoadFull() - 1);
+	} while (A.forceLoadFull() == 0xffff);
+
 	return 0;
 };
 
