@@ -696,6 +696,9 @@ namespace Blaze {
 		void nmi();
 		void abort();
 
+		bool waitingForInterrupt = false;			// CPU is waiting for interrupt
+		bool stopped = false;						// CPU is stopped
+
 		bool getFlag(Byte f) const;
 		void setFlag(Byte f, bool s);
 

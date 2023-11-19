@@ -924,7 +924,24 @@ Blaze::Cycles Blaze::CPU::invalidInstruction() {
 };
 
 Blaze::Cycles Blaze::CPU::executeBRK() {
-	// TODO
+	// Push PC+2 onto the stack
+    store16(SP - 1, PC + 2);
+    SP -= 2;
+
+    // Push processor status onto the stack with the break flag set
+    setFlag(flags::b, true);
+    store8(SP, P | 0x10);
+    SP--;
+
+    // Disable further interrupts
+    setFlag(flags::i, true);
+
+    // Fetch the interrupt vector for IRQ
+    // BRK uses the IRQ vector
+    PC = load16(usingEmulationMode() ? ExceptionVectorAddress::EmulatedIRQ : ExceptionVectorAddress::NativeIRQ);
+
+    // Set cycles for BRK instruction
+    cyclesCountDown = 7;
 	return 0;
 };
 
@@ -1187,7 +1204,12 @@ Blaze::Cycles Blaze::CPU::executeREP() {
 };
 
 Blaze::Cycles Blaze::CPU::executeRTI() {
-	// TODO
+    SP++;
+    P = load8(SP);
+    // Pop the program counter from the stack
+    PC = load16(SP + 1);
+    SP += 2;
+	setFlag(flags::b, false);
 	return 0;
 };
 
@@ -1235,11 +1257,14 @@ Blaze::Cycles Blaze::CPU::executeSEP() {
 };
 
 Blaze::Cycles Blaze::CPU::executeSTP() {
+	/*
 	// Do nothing until there is an interrup
 	while(true)
 	{
 		// Check for interrupt
 	}
+	*/
+	stopped = true;
 	return 0;
 };
 
@@ -1323,6 +1348,7 @@ Blaze::Cycles Blaze::CPU::executeTYX() {
 };
 
 Blaze::Cycles Blaze::CPU::executeWAI() {
+	/*
 	// wait until there is an interrupt
 	while(true)
 	{
@@ -1339,6 +1365,8 @@ Blaze::Cycles Blaze::CPU::executeWAI() {
 			}
 		}
 	}
+	*/
+	waitingForInterrupt = true;
 	return 0;
 };
 
