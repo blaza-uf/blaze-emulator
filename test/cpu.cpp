@@ -3,7 +3,11 @@
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/generators/catch_generators_adapters.hpp>
 #include <catch2/generators/catch_generators_range.hpp>
+#include <catch2/generators/catch_generators_random.hpp>
 #include <sstream>
+#include <blaze/util.hpp>
+
+#include "bus-mock.hpp"
 
 using namespace Blaze;
 using Instruction = Blaze::CPU::Instruction;
@@ -270,6 +274,255 @@ static constexpr std::array<Instruction, 256> OPCODE_INFO {
 	/* FF */ Instruction(Opcode::SBC, 4, 0, AddressingMode::AbsoluteLongIndexedX),
 };
 
+static void testInstruction(CPU::Opcode opcode, AddressingMode addressingMode, std::function<void(CPU&, std::vector<Testing::BusAccess>&)> addExpectedBusAccesses, std::function<void(CPU&)> setup, std::function<void(CPU&)> test) {
+	static constexpr Address INSTRUCTION_ADDRESS = 0x8000;
+	static constexpr Word STACK_POINTER = 0x01f0;
+
+	CPU cpu;
+	Byte rawOpcode = 0;
+	Address pcWhileExecuting = INSTRUCTION_ADDRESS;
+	std::vector<Testing::BusAccess> busAccesses;
+
+	do {
+		if (OPCODE_INFO[rawOpcode].opcode == opcode && OPCODE_INFO[rawOpcode].addressingMode == addressingMode) {
+			break;
+		}
+		++rawOpcode;
+	} while (rawOpcode != 0);
+
+	cpu.PC = INSTRUCTION_ADDRESS;
+	cpu.executingPC = cpu.PC;
+	cpu.SP = STACK_POINTER;
+
+	cpu.PC += OPCODE_INFO[rawOpcode].size;
+
+	addExpectedBusAccesses(cpu, busAccesses);
+
+	Testing::PreconfiguredBus mockBus(true, busAccesses);
+	cpu.bus = &mockBus;
+
+	setup(cpu);
+
+	cpu.executeInstruction(OPCODE_INFO[rawOpcode]);
+
+	mockBus.finalize();
+
+	test(cpu);
+};
+
+static void testInstructionWithOperand(CPU::Opcode opcode, Byte operandBitSize, Address operand, const std::initializer_list<AddressingMode>& addressingModes, std::function<void(CPU&, std::vector<Testing::BusAccess>&)> addExpectedBusAccesses, std::function<void(CPU&)> setup, std::function<void(CPU&)> test) {
+	static constexpr Address INSTRUCTION_ADDRESS = 0x8000;
+	static constexpr Address OPERAND_ADDRESS = 0x8100;
+	static constexpr Address INDIRECT_OPERAND_ADDRESS = 0x8200;
+	static constexpr Address DIRECT_OPERAND_ADDRESS = 0x0080;
+	static constexpr Address LONG_OPERAND_ADDRESS = 0x202020;
+	static constexpr Word INDEX_OFFSET = 0x0008;
+	static constexpr Address BRANCH_ADDRESS = 0x7f7f;
+	static constexpr Address LONG_BRANCH_ADDRESS = 0x4089;
+	static constexpr Word STACK_POINTER = 0x01f0;
+	static constexpr Word STACK_POINTER_OFFSET = 0x08;
+
+	for (const auto& addressingMode: addressingModes) {
+		SECTION(CPU::ADDRESSING_MODE_NAMES[static_cast<uint8_t>(addressingMode)]) {
+			CPU cpu;
+			Byte rawOpcode = 0;
+			Address pcWhileExecuting = INSTRUCTION_ADDRESS;
+			std::vector<Testing::BusAccess> busAccesses;
+
+			do {
+				if (OPCODE_INFO[rawOpcode].opcode == opcode && OPCODE_INFO[rawOpcode].addressingMode == addressingMode) {
+					break;
+				}
+				++rawOpcode;
+			} while (rawOpcode != 0);
+
+			switch (addressingMode) {
+				case CPU::AddressingMode::Absolute:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 16, OPERAND_ADDRESS},
+						{false, OPERAND_ADDRESS, operandBitSize, operand},
+					};
+					break;
+
+				case CPU::AddressingMode::AbsoluteIndexedIndirect:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 16, INDIRECT_OPERAND_ADDRESS - INDEX_OFFSET},
+						{false, INDIRECT_OPERAND_ADDRESS, 16, OPERAND_ADDRESS},
+						{false, OPERAND_ADDRESS, operandBitSize, operand},
+					};
+					break;
+
+				case CPU::AddressingMode::AbsoluteIndexedX:
+				case CPU::AddressingMode::AbsoluteIndexedY:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 16, OPERAND_ADDRESS - INDEX_OFFSET},
+						{false, OPERAND_ADDRESS, operandBitSize, operand},
+					};
+					break;
+
+				case CPU::AddressingMode::AbsoluteIndirect:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 16, INDIRECT_OPERAND_ADDRESS},
+						{false, INDIRECT_OPERAND_ADDRESS, static_cast<Byte>((opcode == Opcode::JML) ? 24 : 16), OPERAND_ADDRESS},
+						{false, OPERAND_ADDRESS, operandBitSize, operand},
+					};
+					break;
+
+				case CPU::AddressingMode::AbsoluteLongIndexedX:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 24, LONG_OPERAND_ADDRESS - INDEX_OFFSET},
+						{false, LONG_OPERAND_ADDRESS, operandBitSize, operand},
+					};
+					break;
+
+				case CPU::AddressingMode::AbsoluteLong:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 24, LONG_OPERAND_ADDRESS},
+						{false, LONG_OPERAND_ADDRESS, operandBitSize, operand},
+					};
+					break;
+
+				case CPU::AddressingMode::DirectIndexedIndirect:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 8, DIRECT_OPERAND_ADDRESS - INDEX_OFFSET},
+						{false, DIRECT_OPERAND_ADDRESS, 16, OPERAND_ADDRESS},
+						{false, OPERAND_ADDRESS, operandBitSize, operand},
+					};
+					break;
+
+				case CPU::AddressingMode::DirectIndexedX:
+				case CPU::AddressingMode::DirectIndexedY:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 8, DIRECT_OPERAND_ADDRESS - INDEX_OFFSET},
+						{false, DIRECT_OPERAND_ADDRESS, operandBitSize, operand},
+					};
+					break;
+
+				case CPU::AddressingMode::DirectIndirectIndexed:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 8, DIRECT_OPERAND_ADDRESS},
+						{false, DIRECT_OPERAND_ADDRESS, 16, OPERAND_ADDRESS - INDEX_OFFSET},
+						{false, OPERAND_ADDRESS, operandBitSize, operand},
+					};
+					break;
+
+				case CPU::AddressingMode::DirectIndirectLongIndexed:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 8, DIRECT_OPERAND_ADDRESS},
+						{false, DIRECT_OPERAND_ADDRESS, 24, LONG_OPERAND_ADDRESS - INDEX_OFFSET},
+						{false, LONG_OPERAND_ADDRESS, operandBitSize, operand},
+					};
+					break;
+
+				case CPU::AddressingMode::DirectIndirectLong:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 8, DIRECT_OPERAND_ADDRESS},
+						{false, DIRECT_OPERAND_ADDRESS, 24, LONG_OPERAND_ADDRESS},
+						{false, LONG_OPERAND_ADDRESS, operandBitSize, operand},
+					};
+					break;
+
+				case CPU::AddressingMode::DirectIndirect:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 8, DIRECT_OPERAND_ADDRESS},
+						{false, DIRECT_OPERAND_ADDRESS, 16, OPERAND_ADDRESS},
+						{false, OPERAND_ADDRESS, operandBitSize, operand},
+					};
+					break;
+
+				case CPU::AddressingMode::Direct:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 8, DIRECT_OPERAND_ADDRESS},
+						{false, DIRECT_OPERAND_ADDRESS, operandBitSize, operand},
+					};
+					break;
+
+				case CPU::AddressingMode::Immediate:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, operandBitSize, operand},
+					};
+					break;
+
+				case CPU::AddressingMode::ProgramCounterRelativeLong:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 16, lo16(LONG_BRANCH_ADDRESS - pcWhileExecuting)},
+					};
+					break;
+
+				case CPU::AddressingMode::ProgramCounterRelative:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 8, lo8(BRANCH_ADDRESS - pcWhileExecuting)},
+					};
+					break;
+
+				case CPU::AddressingMode::StackRelative:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 8, STACK_POINTER_OFFSET},
+						{false, STACK_POINTER + STACK_POINTER_OFFSET, operandBitSize, operand},
+					};
+					break;
+
+				case CPU::AddressingMode::StackRelativeIndirectIndexed:
+					busAccesses = {
+						{false, INSTRUCTION_ADDRESS + 1, 8, STACK_POINTER_OFFSET},
+						{false, STACK_POINTER + STACK_POINTER_OFFSET, 16, OPERAND_ADDRESS - INDEX_OFFSET},
+						{false, OPERAND_ADDRESS, operandBitSize, operand},
+					};
+					break;
+
+				default:
+					break;
+			}
+
+			cpu.PC = INSTRUCTION_ADDRESS;
+			cpu.executingPC = cpu.PC;
+			cpu.SP = STACK_POINTER;
+
+			cpu.PC += OPCODE_INFO[rawOpcode].size;
+
+			switch (addressingMode) {
+				case CPU::AddressingMode::AbsoluteIndexedIndirect:
+				case CPU::AddressingMode::AbsoluteIndexedX:
+				case CPU::AddressingMode::AbsoluteLongIndexedX:
+				case CPU::AddressingMode::DirectIndexedIndirect:
+				case CPU::AddressingMode::DirectIndexedX:
+					cpu.X = INDEX_OFFSET;
+
+				case CPU::AddressingMode::AbsoluteIndexedY:
+				case CPU::AddressingMode::DirectIndexedY:
+				case CPU::AddressingMode::DirectIndirectIndexed:
+				case CPU::AddressingMode::DirectIndirectLongIndexed:
+				case CPU::AddressingMode::StackRelativeIndirectIndexed:
+					cpu.Y = INDEX_OFFSET;
+					break;
+
+				case CPU::AddressingMode::BlockMove:
+					// this requires a special case; we don't handle this in this function
+					throw std::runtime_error("Invalid addressing mode (block move) given to testInstructionWithOperand");
+
+				default:
+					break;
+			}
+
+			addExpectedBusAccesses(cpu, busAccesses);
+
+			Testing::PreconfiguredBus mockBus(true, busAccesses);
+			cpu.bus = &mockBus;
+
+			setup(cpu);
+
+			cpu.executeInstruction(OPCODE_INFO[rawOpcode]);
+
+			mockBus.finalize();
+
+			test(cpu);
+		}
+	}
+};
+
+static void noopTestStep(CPU& cpu) {};
+static void noopAddBusAccesses(CPU& cpu, std::vector<Testing::BusAccess>& busAccesses) {};
+
 TEST_CASE("Instruction decoding", "[cpu]") {
 	Byte opcodeByte;
 	Instruction expectedInfo;
@@ -296,5 +549,106 @@ TEST_CASE("Instruction decoding", "[cpu]") {
 
 		REQUIRE(static_cast<uint32_t>(decodedInfo.condition) == static_cast<uint32_t>(expectedInfo.condition));
 		REQUIRE(decodedInfo.passConditionIfBitSet == expectedInfo.passConditionIfBitSet);
+	}
+}
+
+TEST_CASE("ADC", "[cpu][instruction]") {
+	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
+	auto hasCarry = GENERATE(false, true);
+	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto fullResult = static_cast<Address>(lhs) + static_cast<Address>(rhs) + (hasCarry ? 1 : 0);
+	auto result = static_cast<Word>(fullResult & (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff));
+	bool resultIsZero = result == 0;
+	bool resultIsNegative = msb(result, memoryAndAccumulatorAre8Bit);
+	bool resultHasOverflow = msb(lhs, memoryAndAccumulatorAre8Bit) == msb(rhs, memoryAndAccumulatorAre8Bit) && msb(lhs, memoryAndAccumulatorAre8Bit) != msb(result, memoryAndAccumulatorAre8Bit);
+	bool resultHasCarry = fullResult != result;
+
+	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit; " << (hasCarry ? "" : "no ") << "carry") {
+		testInstructionWithOperand(Opcode::ADC, memoryAndAccumulatorAre8Bit ? 8 : 16, rhs,
+			{
+				AddressingMode::DirectIndexedIndirect,
+				AddressingMode::Direct,
+				AddressingMode::Immediate,
+				AddressingMode::Absolute,
+				AddressingMode::DirectIndirectIndexed,
+				AddressingMode::DirectIndexedX,
+				AddressingMode::AbsoluteIndexedY,
+				AddressingMode::AbsoluteIndexedX,
+				AddressingMode::StackRelative,
+				AddressingMode::DirectIndirectLong,
+				AddressingMode::AbsoluteLong,
+				AddressingMode::StackRelativeIndirectIndexed,
+				AddressingMode::DirectIndirectLongIndexed,
+				AddressingMode::AbsoluteLongIndexedX,
+			},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.A.forceStoreFull(lhs);
+				cpu.setFlag(CPU::flags::m, memoryAndAccumulatorAre8Bit);
+				cpu.setFlag(CPU::flags::c, hasCarry);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.A.load() == result);
+				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
+				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
+				REQUIRE(cpu.getFlag(CPU::flags::v) == resultHasOverflow);
+				REQUIRE(cpu.getFlag(CPU::flags::c) == resultHasCarry);
+			}
+		);
+	}
+}
+
+TEST_CASE("PHA", "[cpu][instruction]") {
+	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
+	auto val = GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1)));
+
+	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit") {
+		Word initialSP = 0;
+
+		testInstruction(Opcode::PHA, AddressingMode::Stack,
+			/*addExpectedBusAccesses=*/[&](CPU& cpu, std::vector<Testing::BusAccess>& busAccesses) {
+				initialSP = cpu.SP;
+
+				busAccesses.emplace_back(true, initialSP - (memoryAndAccumulatorAre8Bit ? 0 : 1), memoryAndAccumulatorAre8Bit ? 8 : 16, val);
+			},
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.A.forceStoreFull(val);
+				cpu.setFlag(CPU::flags::m, memoryAndAccumulatorAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				// the store is already verified by the bus access list
+				//
+				// we just need to check the stack pointer here
+				REQUIRE(cpu.SP == initialSP - (memoryAndAccumulatorAre8Bit ? 1 : 2));
+			}
+		);
+	}
+}
+
+TEST_CASE("PLA", "[cpu][instruction]") {
+	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
+	auto val = GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1)));
+
+	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit") {
+		Word initialSP = 0;
+
+		testInstruction(Opcode::PLA, AddressingMode::Stack,
+			/*addExpectedBusAccesses=*/[&](CPU& cpu, std::vector<Testing::BusAccess>& busAccesses) {
+				initialSP = cpu.SP;
+
+				busAccesses.emplace_back(false, initialSP + 1, memoryAndAccumulatorAre8Bit ? 8 : 16, val);
+			},
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.setFlag(CPU::flags::m, memoryAndAccumulatorAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.A.load() == val);
+				REQUIRE(cpu.SP == initialSP + (memoryAndAccumulatorAre8Bit ? 1 : 2));
+			}
+		);
 	}
 }

@@ -68,8 +68,15 @@ namespace Blaze {
 	};
 
 	template<typename T>
+	static constexpr T mid8(T value, bool shift) {
+		auto unshifted = value & static_cast<T>(0xff00);
+		return shift ? (unshifted >> 8) : unshifted;
+	};
+
+	template<typename T>
 	static constexpr T hi8(T value, bool shift) {
-		size_t typeBits = sizeof(T) * 8;
+		// treat types greater than 16 bits as 24-bit types (since the CPU can only handle up to 24 bit types)
+		size_t typeBits = (sizeof(value) > 2) ? 24 : (sizeof(T) * 8);
 		auto shiftBits = typeBits - 8;
 		auto unshifted = value & (static_cast<T>(0xff) << shiftBits);
 		return shift ? (unshifted >> shiftBits) : unshifted;

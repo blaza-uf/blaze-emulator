@@ -7,7 +7,18 @@
 
 namespace Blaze
 {
-	struct Bus
+	struct BusInterface {
+		~BusInterface() = default;
+
+		virtual void write(Address addr, Byte data) = 0; 	// write8
+		virtual void write(Address addr, Word data) = 0; 	// write16
+		virtual void write(Address addr, Address data) = 0; // write 24
+		virtual Byte read8(Address addr) = 0;
+		virtual Word read16(Address addr) = 0;
+		virtual Address read24(Address addr) = 0;
+	};
+
+	struct Bus: public BusInterface
 	{
 		//=== Devices connected to the bus ===
 		CPU cpu;
@@ -18,12 +29,12 @@ namespace Blaze
 		Bus();
 
 		//=== Bus Functionality ===
-		void write(Address addr, Byte data); 	// write8
-		void write(Address addr, Word data); 	// write16
-		void write(Address addr, Address data); // write 24
-		Byte read8(Address addr);
-		Word read16(Address addr);
-		Address read24(Address addr);
+		void write(Address addr, Byte data) override;
+		void write(Address addr, Word data) override;
+		void write(Address addr, Address data) override;
+		Byte read8(Address addr) override;
+		Word read16(Address addr) override;
+		Address read24(Address addr) override;
 
 		void reset();
 

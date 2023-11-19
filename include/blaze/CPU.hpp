@@ -12,8 +12,8 @@ namespace Blaze {
 	using ClockTicks = uint32_t;
 	using Cycles = uint32_t;
 
-	// Avoid circular inclusions by declaring Bus
-	struct Bus;
+	// Avoid circular inclusions by declaring BusInterface
+	struct BusInterface;
 
 	struct CPU {
 		// TODO: Link to the system bus
@@ -62,6 +62,33 @@ namespace Blaze {
 
 			Last = StackRelativeIndirectIndexed,
 			INVALID = std::numeric_limits<uint8_t>::max(),
+		};
+
+		static constexpr std::array<const char*, static_cast<uint8_t>(AddressingMode::Last) + 1> ADDRESSING_MODE_NAMES = {
+			"Absolute",
+			"AbsoluteIndexedIndirect",
+			"AbsoluteIndexedX",
+			"AbsoluteIndexedY",
+			"AbsoluteIndirect",
+			"AbsoluteLongIndexedX",
+			"AbsoluteLong",
+			"Accumulator",
+			"BlockMove",
+			"DirectIndexedIndirect",
+			"DirectIndexedX",
+			"DirectIndexedY",
+			"DirectIndirectIndexed",
+			"DirectIndirectLongIndexed",
+			"DirectIndirectLong",
+			"DirectIndirect",
+			"Direct",
+			"Immediate",
+			"Implied",
+			"ProgramCounterRelativeLong",
+			"ProgramCounterRelative",
+			"Stack",
+			"StackRelative",
+			"StackRelativeIndirectIndexed",
 		};
 
 		static constexpr Byte instructionSizeWithAddressingMode(AddressingMode mode) {
@@ -539,22 +566,22 @@ namespace Blaze {
 		Byte e = 1; //emulation mode. separate from p register flags
 
 		Register A; // accumulator
-		Word DR; // direct
-		Word PC; // program counter
+		Word DR = 0; // direct
+		Word PC = 0; // program counter
 		Register X, Y; // index registers
-		Word SP; // stack pointer
-		Byte DBR; // data bank
-		Byte PBR; // program bank
-		Byte P; // process status
+		Word SP = 0x0100; // stack pointer
+		Byte DBR = 0; // data bank
+		Byte PBR = 0; // program bank
+		Byte P = flags::m | flags::x | flags::i | flags::c; // process status
 
 		// the full 24-bit address of the instruction that is *currently executing*
 		//
 		// this is NOT the same as the PC; the PC is automatically incremented to the next instruction
 		// BEFORE the current instruction starts executing.
-		Address executingPC;
+		Address executingPC = 0;
 
 		// System Bus
-		Bus *bus = nullptr;
+		BusInterface *bus = nullptr;
 
 		std::function<void(char)> putCharacterHook = nullptr;
 
@@ -683,7 +710,7 @@ namespace Blaze {
 			Y(P, flags::x)
 			{};
 
-		void reset(Bus* theBus);      		// Reset CPU internal state
+		void reset(BusInterface* theBus);      		// Reset CPU internal state
 		void execute(); 		// Execute the current instruction
 		void clock();                    		// CPU driver
 		Byte read(Address addr);				// Read from the Bus

@@ -93,10 +93,12 @@ static constexpr Blaze::Byte opcodeGetSubopcode(Blaze::Byte opcode) {
 };
 // NOLINTEND(readability-magic-numbers, readability-identifier-length)
 
-void Blaze::CPU::reset(Bus* theBus) {
+void Blaze::CPU::reset(BusInterface* theBus) {
 	bus = theBus;
 
-	PC = load16(ExceptionVectorAddress::EmulatedRESET); // need to load w/contents of reset vector
+	if (theBus != nullptr) {
+		PC = load16(ExceptionVectorAddress::EmulatedRESET); // need to load w/contents of reset vector
+	}
 	DBR = PBR = 0x00;
 	DR = 0;
 	A.reset();
@@ -358,7 +360,7 @@ Blaze::Word Blaze::CPU::loadOperand(AddressingMode addressingMode, bool use8BitI
 	if (addressingMode == AddressingMode::Immediate) {
 		operand = use8BitImmediate ? load8(executingPC + 1) : load16(executingPC + 1);
 	} else {
-		operand = load16(operand);
+		operand = memoryAndAccumulatorAre8Bit() ? load8(operand) : load16(operand);
 	}
 
 	// make sure the operand is actually 16 bits wide and not 24 bits
