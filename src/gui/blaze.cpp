@@ -413,6 +413,15 @@ static LRESULT CALLBACK debuggerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, 
 			return DefWindowProc(hwnd, uMsg, wParam, lParam);
 	}
 };
+#else // !_WIN32
+static void updateDisassembly() {
+	#warning TODO
+};
+
+static void setContinuousExecution(bool continuousExecution) {
+	Blaze::continuousExecution = continuousExecution;
+	#warning TODO
+};
 #endif
 
 static int createText(const std::string& text, const SDL_Color& color, TTF_Font* font, SDL_Renderer* renderer, SDL_Texture*& outTexture, int& outWidth, int& outHeight) {
