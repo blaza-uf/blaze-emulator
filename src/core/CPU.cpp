@@ -219,7 +219,10 @@ void Blaze::CPU::execute() {
 	auto info = decodeInstruction(load8(executingPC), memoryAndAccumulatorAre8Bit());
 
 	// Check for invalid instruction
-
+	if(info.opcode == Opcode::INVALID)
+	{
+		invalidInstruction();
+	}
 
 	// the PC is always incremented to the next instruction before the current instruction starts executing
 	PC += info.size;
