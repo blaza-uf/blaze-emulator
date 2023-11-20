@@ -218,6 +218,9 @@ void Blaze::CPU::execute() {
 	// decode instruction and get info (e.g. # of cycles to run, instruction size)
 	auto info = decodeInstruction(load8(executingPC), memoryAndAccumulatorAre8Bit());
 
+	// Check for invalid instruction
+
+
 	// the PC is always incremented to the next instruction before the current instruction starts executing
 	PC += info.size;
 
@@ -921,7 +924,8 @@ Blaze::Cycles Blaze::CPU::executeInstruction(const Instruction& info) {
 };
 
 Blaze::Cycles Blaze::CPU::invalidInstruction() {
-	// TODO
+	// Instruction is invalid -> initiate hardware interrupt: ABORT
+	abort();
 	return 0;
 };
 
