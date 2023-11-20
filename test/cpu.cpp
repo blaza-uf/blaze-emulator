@@ -652,3 +652,267 @@ TEST_CASE("PLA", "[cpu][instruction]") {
 		);
 	}
 }
+
+TEST_CASE("PHD", "[cpu][instruction]") {
+	auto usingEmulatorMode = GENERATE(false, true);
+	auto val = GENERATE_COPY(take(1, random<Address>(0, (usingEmulatorMode ? 0xff : 0xffff) + 1)));
+
+	DYNAMIC_SECTION((usingEmulatorMode ? 8 : 16) << "-bit") {
+		Word initialSP = 0;
+
+		testInstruction(Opcode::PHD, AddressingMode::Stack,
+			/*addExpectedBusAccesses=*/[&](CPU& cpu, std::vector<Testing::BusAccess>& busAccesses) {
+				initialSP = cpu.SP;
+
+				busAccesses.emplace_back(true, initialSP - (usingEmulatorMode ? 0 : 1), usingEmulatorMode ? 8 : 16, val);
+			},
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.DR = val;
+			},
+			/*test=*/[&](CPU& cpu) {
+	
+				REQUIRE(cpu.SP == initialSP - (usingEmulatorMode ? 1 : 2));
+			}
+		);
+	}
+}
+
+TEST_CASE("PLD", "[cpu][instruction]") {
+	auto usingEmulatorMode = GENERATE(false, true);
+	auto val = GENERATE_COPY(take(1, random<Address>(0, (usingEmulatorMode ? 0xff : 0xffff) + 1)));
+
+	DYNAMIC_SECTION((usingEmulatorMode ? 8 : 16) << "-bit") {
+		Word initialSP = 0;
+
+		testInstruction(Opcode::PLD, AddressingMode::Stack,
+			/*addExpectedBusAccesses=*/[&](CPU& cpu, std::vector<Testing::BusAccess>& busAccesses) {
+				initialSP = cpu.SP;
+
+				busAccesses.emplace_back(false, initialSP + 1, usingEmulatorMode ? 8 : 16, val);
+			},
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.DR == val);
+				REQUIRE(cpu.SP == initialSP + (usingEmulatorMode ? 1 : 2));
+			}
+		);
+	}
+}
+
+TEST_CASE("PHX", "[cpu][instruction]") {
+	auto indexRegistersAre8Bit = GENERATE(false, true);
+	auto val = GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1)));
+
+	DYNAMIC_SECTION((indexRegistersAre8Bit ? 8 : 16) << "-bit") {
+		Word initialSP = 0;
+
+		testInstruction(Opcode::PHX, AddressingMode::Stack,
+			/*addExpectedBusAccesses=*/[&](CPU& cpu, std::vector<Testing::BusAccess>& busAccesses) {
+				initialSP = cpu.SP;
+
+				busAccesses.emplace_back(true, initialSP - (indexRegistersAre8Bit ? 0 : 1), indexRegistersAre8Bit ? 8 : 16, val);
+			},
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.X.forceStoreFull(val);
+				cpu.setFlag(CPU::flags::x,indexRegistersAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.SP == initialSP - (indexRegistersAre8Bit ? 1 : 2));
+			}
+		);
+	}
+}
+
+TEST_CASE("PLX", "[cpu][instruction]") {
+	auto indexRegistersAre8Bit = GENERATE(false, true);
+	auto val = GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1)));
+
+	DYNAMIC_SECTION((indexRegistersAre8Bit ? 8 : 16) << "-bit") {
+		Word initialSP = 0;
+
+		testInstruction(Opcode::PLX, AddressingMode::Stack,
+			/*addExpectedBusAccesses=*/[&](CPU& cpu, std::vector<Testing::BusAccess>& busAccesses) {
+				initialSP = cpu.SP;
+
+				busAccesses.emplace_back(false, initialSP + 1,indexRegistersAre8Bit ? 8 : 16, val);
+			},
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.setFlag(CPU::flags::x, indexRegistersAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.X.load() == val);
+				REQUIRE(cpu.SP == initialSP + (indexRegistersAre8Bit ? 1 : 2));
+			}
+		);
+	}
+}
+
+TEST_CASE("PHY", "[cpu][instruction]") {
+	auto indexRegistersAre8Bit = GENERATE(false, true);
+	auto val = GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1)));
+
+	DYNAMIC_SECTION((indexRegistersAre8Bit ? 8 : 16) << "-bit") {
+		Word initialSP = 0;
+
+		testInstruction(Opcode::PHY, AddressingMode::Stack,
+			/*addExpectedBusAccesses=*/[&](CPU& cpu, std::vector<Testing::BusAccess>& busAccesses) {
+				initialSP = cpu.SP;
+
+				busAccesses.emplace_back(true, initialSP - (indexRegistersAre8Bit ? 0 : 1), indexRegistersAre8Bit ? 8 : 16, val);
+			},
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.Y.forceStoreFull(val);
+				cpu.setFlag(CPU::flags::x,indexRegistersAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.SP == initialSP - (indexRegistersAre8Bit ? 1 : 2));
+			}
+		);
+	}
+}
+
+TEST_CASE("PLY", "[cpu][instruction]") {
+	auto indexRegistersAre8Bit = GENERATE(false, true);
+	auto val = GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1)));
+
+	DYNAMIC_SECTION((indexRegistersAre8Bit ? 8 : 16) << "-bit") {
+		Word initialSP = 0;
+
+		testInstruction(Opcode::PLY, AddressingMode::Stack,
+			/*addExpectedBusAccesses=*/[&](CPU& cpu, std::vector<Testing::BusAccess>& busAccesses) {
+				initialSP = cpu.SP;
+
+				busAccesses.emplace_back(false, initialSP + 1,indexRegistersAre8Bit ? 8 : 16, val);
+			},
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.setFlag(CPU::flags::x, indexRegistersAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.Y.load() == val);
+				REQUIRE(cpu.SP == initialSP + (indexRegistersAre8Bit ? 1 : 2));
+			}
+		);
+	}
+}
+
+TEST_CASE("PHB", "[cpu][instruction]") {
+	auto val = GENERATE_COPY(take(1, random<Address>(0, 0xff + 1)));
+
+	DYNAMIC_SECTION(8 << "-bit") {
+		Word initialSP = 0;
+
+		testInstruction(Opcode::PHB, AddressingMode::Stack,
+			/*addExpectedBusAccesses=*/[&](CPU& cpu, std::vector<Testing::BusAccess>& busAccesses) {
+				initialSP = cpu.SP;
+
+				busAccesses.emplace_back(true, initialSP, 8, val);
+			},
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.DBR = val;
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.SP == initialSP - 1);
+			}
+		);
+	}
+}
+
+TEST_CASE("PLB", "[cpu][instruction]") {
+	auto val = GENERATE_COPY(take(1, random<Address>(0, 0xff + 1)));
+
+	DYNAMIC_SECTION(8 << "-bit") {
+		Word initialSP = 0;
+
+		testInstruction(Opcode::PLB, AddressingMode::Stack,
+			/*addExpectedBusAccesses=*/[&](CPU& cpu, std::vector<Testing::BusAccess>& busAccesses) {
+				initialSP = cpu.SP;
+
+				busAccesses.emplace_back(false, initialSP + 1, 8, val);
+			},
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.DBR == val);
+				REQUIRE(cpu.SP == initialSP + 1);
+			}
+		);
+	}
+}
+
+TEST_CASE("PHK", "[cpu][instruction]") {
+	auto val = GENERATE_COPY(take(1, random<Address>(0, 0xff + 1)));
+
+	DYNAMIC_SECTION(8 << "-bit") {
+		Word initialSP = 0;
+
+		testInstruction(Opcode::PHK, AddressingMode::Stack,
+			/*addExpectedBusAccesses=*/[&](CPU& cpu, std::vector<Testing::BusAccess>& busAccesses) {
+				initialSP = cpu.SP;
+
+				busAccesses.emplace_back(true, initialSP, 8, val);
+			},
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.PBR = val;
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.SP == initialSP - 1);
+			}
+		);
+	}
+}
+
+TEST_CASE("PHP", "[cpu][instruction]") {
+	auto val = GENERATE_COPY(take(1, random<Address>(0, 0xff + 1)));
+
+	DYNAMIC_SECTION(8 << "-bit") {
+		Word initialSP = 0;
+
+		testInstruction(Opcode::PHP, AddressingMode::Stack,
+			/*addExpectedBusAccesses=*/[&](CPU& cpu, std::vector<Testing::BusAccess>& busAccesses) {
+				initialSP = cpu.SP;
+
+				busAccesses.emplace_back(true, initialSP, 8, val);
+			},
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.P = val;
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.SP == initialSP - 1);
+			}
+		);
+	}
+}
+
+TEST_CASE("PLP", "[cpu][instruction]") {
+	auto val = GENERATE_COPY(take(1, random<Address>(0, 0xff + 1)));
+
+	DYNAMIC_SECTION(8 << "-bit") {
+		Word initialSP = 0;
+
+		testInstruction(Opcode::PLP, AddressingMode::Stack,
+			/*addExpectedBusAccesses=*/[&](CPU& cpu, std::vector<Testing::BusAccess>& busAccesses) {
+				initialSP = cpu.SP;
+
+				busAccesses.emplace_back(false, initialSP + 1, 8, val);
+			},
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.P == val);
+				REQUIRE(cpu.SP == initialSP + 1);
+			}
+		);
+	}
+}
