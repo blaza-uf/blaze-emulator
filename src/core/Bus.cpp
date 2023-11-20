@@ -159,5 +159,6 @@ void Blaze::Bus::findDeviceAndOffset(Address fullAddress, MMIODevice*& outDevice
 
 	// if we got here, we were unable to map this access.
 	// TODO: report the issue back up to the caller (usually the CPU).
+	cpu.invalidInstruction();
 	throw std::runtime_error("Failed to map memory access to address 0x" + valueToHexString(fullAddress));
 };
