@@ -692,7 +692,7 @@ TEST_CASE("PLD", "[cpu][instruction]") {
 				busAccesses.emplace_back(false, initialSP + 1, usingEmulatorMode ? 8 : 16, val);
 			},
 			/*setup=*/[&](CPU& cpu) {
-				cpu.e = 0;
+				cpu.e = usingEmulatorMode ? 1 : 0;
 			},
 			/*test=*/[&](CPU& cpu) {
 				REQUIRE(cpu.DR == val);
