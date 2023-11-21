@@ -667,7 +667,7 @@ TEST_CASE("PHD", "[cpu][instruction]") {
 				busAccesses.emplace_back(true, initialSP - (usingEmulatorMode ? 0 : 1), usingEmulatorMode ? 8 : 16, val);
 			},
 			/*setup=*/[&](CPU& cpu) {
-				cpu.e = 0;
+				cpu.e = usingEmulatorMode ? 1 : 0;
 				cpu.DR = val;
 			},
 			/*test=*/[&](CPU& cpu) {
