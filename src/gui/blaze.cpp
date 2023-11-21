@@ -47,6 +47,7 @@ namespace Blaze {
 		EditOptions = 4,
 		EditContinuousExecution = 7,
 		ViewShowDebugger = 5,
+		ViewShowDebugConsole = 8,
 		HelpHelp = 6,
 
 		DebuggerTextView = 100,
@@ -55,6 +56,8 @@ namespace Blaze {
 		DebuggerNext = 103,
 		DebuggerInto = 104,
 		DebuggerRegisterView = 105,
+
+		DebugConsoleTextView = 200,
 	};
 
 	static constexpr LPCSTR debuggerWindowClassName = TEXT("Blaze Debugger Window Class");
@@ -67,8 +70,13 @@ namespace Blaze {
 	static constexpr int debuggerButtonYMargin = 3;
 	static constexpr int debuggerRegisterViewHeight = 200;
 
+	static constexpr LPCSTR debugConsoleWindowClassName = TEXT("Blaze Debug Console Window Class");
+	static constexpr int defaultDebugConsoleWindowWidth = 400;
+	static constexpr int defaultDebugConsoleWindowHeight = 600;
+
 	static WNDCLASS debuggerWindowClass = {};
 	static HMENU editMenu = nullptr;
+	static WNDCLASS debugConsoleWindowClass = {};
 #endif // _WIN32
 
 	static bool continuousExecution = true;
@@ -202,6 +210,7 @@ static LPCSTR fontFace = nullptr;
 
 static HWND win32DebuggerTextWindow = nullptr;
 static HWND win32DebuggerRegWindow = nullptr;
+static HWND win32DebugConsoleTextWindow = nullptr;
 
 static std::wstring utf8ToUTF16(const std::string& contents) {
 	std::wstring wideContents;
@@ -413,8 +422,68 @@ static LRESULT CALLBACK debuggerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, 
 			return DefWindowProc(hwnd, uMsg, wParam, lParam);
 	}
 };
+
+static void updateConsole(const std::string& contents) {
+#if defined(UNICODE)
+	Edit_SetText(win32DebugConsoleTextWindow, utf8ToUTF16(contents).c_str());
+#else
+	Edit_SetText(win32DebugConsoleTextWindow, contents.c_str());
+#endif
+};
+
+static LRESULT CALLBACK debugConsoleWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	switch (uMsg) {
+		case WM_CLOSE:
+			ShowWindow(hwnd, SW_HIDE);
+			return 0;
+
+		case WM_CREATE: {
+			auto hInst = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+			HFONT hFont = nullptr;
+
+			hFont = CreateFont(0, 0, 0, 0, FW_DONTCARE, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, fontFace);
+
+			win32DebugConsoleTextWindow = CreateWindowEx(0, TEXT("Edit"), nullptr, WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_HSCROLL | ES_LEFT | ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_READONLY, 0, 0, 0, 0, hwnd, (HMENU)Blaze::MenuID::DebugConsoleTextView, hInst, nullptr);
+			if (!win32DebugConsoleTextWindow) {
+				abort();
+			}
+
+			SetWindowFont(win32DebugConsoleTextWindow, hFont, FALSE);
+
+			updateConsole("");
+
+			return 0;
+		}
+
+		case WM_SIZE: {
+			auto width = LOWORD(lParam);
+			auto height = HIWORD(lParam);
+
+			MoveWindow(win32DebugConsoleTextWindow, 0, 0, width, height, TRUE);
+			return 0;
+		}
+
+		case WM_PAINT: {
+			PAINTSTRUCT ps;
+			HDC hdc = BeginPaint(hwnd, &ps);
+
+			FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
+
+			EndPaint(hwnd, &ps);
+
+			return 0;
+		}
+
+		default:
+			return DefWindowProc(hwnd, uMsg, wParam, lParam);
+	}
+};
 #else // !_WIN32
 static void updateDisassembly() {
+	#warning TODO
+};
+
+static void updateConsole(const std::string& contents) {
 	#warning TODO
 };
 
@@ -455,10 +524,15 @@ int main(int argc, char** argv) {
 	TTF_Font* font = nullptr;
 	bool& romLoaded = Blaze::romLoaded;
 	Blaze::Bus& bus = Blaze::bus;
+	bool holdingLeftControl = false;
+	bool holdingRightControl = false;
+	bool holdingLeftShift = false;
+	bool holdingRightShift = false;
 
 #ifdef _WIN32
 	HWND win32MainWindow = nullptr;
 	HWND win32DebuggerWindow = nullptr;
+	HWND win32DebugConsoleWindow = nullptr;
 	HMENU mainMenu = nullptr;
 	HMENU fileMenu = nullptr;
 	HMENU& editMenu = Blaze::editMenu;
@@ -528,24 +602,25 @@ int main(int argc, char** argv) {
 		viewMenu = CreateMenu();
 		helpMenu = CreateMenu();
 
-		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)fileMenu, "File");
+		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)fileMenu, "&File");
 
-		AppendMenu(fileMenu, MF_STRING, Blaze::MenuID::FileOpen, "Open ROM");
-		AppendMenu(fileMenu, MF_STRING, Blaze::MenuID::FileClose, "Close ROM");
+		AppendMenu(fileMenu, MF_STRING, Blaze::MenuID::FileOpen, "&Open ROM\tCtrl+O");
+		AppendMenu(fileMenu, MF_STRING, Blaze::MenuID::FileClose, "&Close ROM\tCtrl+Shift+O");
 		AppendMenu(fileMenu, MF_STRING, Blaze::MenuID::FileExit, "Exit");
 
-		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)editMenu, "Edit");
+		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)editMenu, "&Edit");
 
-		AppendMenu(editMenu, MF_STRING, Blaze::MenuID::EditOptions, "Options");
-		AppendMenu(editMenu, MF_STRING, Blaze::MenuID::EditContinuousExecution, "Continuous Execution");
+		AppendMenu(editMenu, MF_STRING, Blaze::MenuID::EditOptions, "&Options");
+		AppendMenu(editMenu, MF_STRING, Blaze::MenuID::EditContinuousExecution, "Continuous E&xecution\tCtrl+Shift+X");
 
-		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)viewMenu, "View");
+		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)viewMenu, "&View");
 
-		AppendMenu(viewMenu, MF_STRING, Blaze::MenuID::ViewShowDebugger, "Show Debugger");
+		AppendMenu(viewMenu, MF_STRING, Blaze::MenuID::ViewShowDebugger, "Show &Debugger\tCtrl+D");
+		AppendMenu(viewMenu, MF_STRING, Blaze::MenuID::ViewShowDebugConsole, "Show Debug &Console\tCtrl+Shift+C");
 
-		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)helpMenu, "Help");
+		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)helpMenu, "&Help");
 
-		AppendMenu(helpMenu, MF_STRING, Blaze::MenuID::HelpHelp, "Help");
+		AppendMenu(helpMenu, MF_STRING, Blaze::MenuID::HelpHelp, "&Help");
 
 		SetMenu(win32MainWindow, mainMenu);
 	}
@@ -571,11 +646,30 @@ int main(int argc, char** argv) {
 		SDL_Quit();
 		return 1;
 	}
+
+	// set up the debug console window
+
+	Blaze::debugConsoleWindowClass.lpfnWndProc = debugConsoleWindowProc;
+	Blaze::debugConsoleWindowClass.hInstance = mainWindowInfo.info.win.hinstance;
+	Blaze::debugConsoleWindowClass.lpszClassName = Blaze::debugConsoleWindowClassName;
+
+	RegisterClass(&Blaze::debugConsoleWindowClass);
+
+	win32DebugConsoleWindow = CreateWindowEx(0, Blaze::debugConsoleWindowClassName, TEXT("Debug Console"), WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, Blaze::defaultDebugConsoleWindowWidth, Blaze::defaultDebugConsoleWindowHeight, nullptr, nullptr, Blaze::debugConsoleWindowClass.hInstance, nullptr);
+	if (win32DebugConsoleWindow == nullptr) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create debugger window: %lu", GetLastError());
+		SDL_DestroyRenderer(renderer);
+		SDL_DestroyWindow(mainWindow);
+		SDL_Quit();
+		return 1;
+	}
 #endif // _WIN32
 
 	std::string debugBuffer;
+	std::string debugConsoleOutput;
 	bus.cpu.putCharacterHook = [&](char character) {
-		debugBuffer.push_back(character);
+		debugConsoleOutput.push_back(character);
+		updateConsole(debugConsoleOutput);
 	};
 
 	if (argc > 1) {
@@ -621,12 +715,63 @@ int main(int argc, char** argv) {
 					running = false;
 					break;
 
-				case SDL_KEYDOWN:
+				case SDL_KEYDOWN: {
+					bool holdingControl = false;
+					bool holdingShift = false;
+
+					switch (event.key.keysym.sym) {
+						case SDLK_LCTRL: holdingLeftControl = true; break;
+						case SDLK_RCTRL: holdingRightControl = true; break;
+						case SDLK_LSHIFT: holdingLeftShift = true; break;
+						case SDLK_RSHIFT: holdingRightShift = true; break;
+					}
+
 					snesKey = mapSDLToSNES(event.key.keysym.sym);
+					holdingControl = holdingLeftControl || holdingRightControl;
+					holdingShift = holdingLeftShift || holdingRightShift;
+
+					if (holdingControl && !holdingShift && event.key.keysym.sym == SDLK_o) {
+#if _WIN32
+						PostMessage(win32MainWindow, WM_COMMAND, static_cast<WPARAM>(Blaze::MenuID::FileOpen), 0);
+#else
+						#warning TODO
+#endif
+					} else if (holdingControl && holdingShift && event.key.keysym.sym == SDLK_o) {
+#if _WIN32
+						PostMessage(win32MainWindow, WM_COMMAND, static_cast<WPARAM>(Blaze::MenuID::FileClose), 0);
+#else
+						#warning TODO
+#endif
+					} else if (holdingControl && holdingShift && event.key.keysym.sym == SDLK_x) {
+#if _WIN32
+						PostMessage(win32MainWindow, WM_COMMAND, static_cast<WPARAM>(Blaze::MenuID::EditContinuousExecution), 0);
+#else
+						#warning TODO
+#endif
+					} else if (holdingControl && !holdingShift && event.key.keysym.sym == SDLK_d) {
+#if _WIN32
+						PostMessage(win32MainWindow, WM_COMMAND, static_cast<WPARAM>(Blaze::MenuID::ViewShowDebugger), 0);
+#else
+						#warning TODO
+#endif
+					} else if (holdingControl && holdingShift && event.key.keysym.sym == SDLK_c) {
+#if _WIN32
+						PostMessage(win32MainWindow, WM_COMMAND, static_cast<WPARAM>(Blaze::MenuID::ViewShowDebugConsole), 0);
+#else
+						#warning TODO
+#endif
+					}
+
 					// update emulator state
-					break;
+				} break;
 
 				case SDL_KEYUP:
+					switch (event.key.keysym.sym) {
+						case SDLK_LCTRL: holdingLeftControl = false; break;
+						case SDLK_RCTRL: holdingRightControl = false; break;
+						case SDLK_LSHIFT: holdingLeftShift = false; break;
+						case SDLK_RSHIFT: holdingRightShift = false; break;
+					}
 					snesKey = mapSDLToSNES(event.key.keysym.sym);
 					// update emulator state
 					break;
@@ -655,8 +800,11 @@ int main(int argc, char** argv) {
 										bus.reset();
 
 										romLoaded = true;
+										debugBuffer = "";
+										debugConsoleOutput = "";
 
 										updateDisassembly();
+										updateConsole(debugConsoleOutput);
 									}
 								} catch (const std::runtime_error& e) {
 									output << "Failed to load ROM:\n" << e.what();
@@ -674,8 +822,13 @@ int main(int argc, char** argv) {
 							// when a ROM is unloaded, we need to reset all components
 							bus.reset();
 							bus.rom.reset(&bus); // we also reset the ROM
+
 							romLoaded = false;
 							debugBuffer = "";
+							debugConsoleOutput = "";
+
+							updateDisassembly();
+							updateConsole(debugConsoleOutput);
 						} break;
 
 						case Blaze::MenuID::FileExit: {
@@ -688,10 +841,15 @@ int main(int argc, char** argv) {
 
 						case Blaze::MenuID::EditContinuousExecution: {
 							setContinuousExecution(!Blaze::continuousExecution);
+							updateDisassembly();
 						} break;
 
 						case Blaze::MenuID::ViewShowDebugger: {
 							ShowWindow(win32DebuggerWindow, SW_SHOW);
+						} break;
+
+						case Blaze::MenuID::ViewShowDebugConsole: {
+							ShowWindow(win32DebugConsoleWindow, SW_SHOW);
 						} break;
 
 						case Blaze::MenuID::HelpHelp: {
