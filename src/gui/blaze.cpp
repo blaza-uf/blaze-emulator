@@ -10,8 +10,11 @@
 #include <string>
 #include <sstream>
 #include <blaze/Bus.hpp>
-#include <SDL_ttf.h>
 #include <blaze/util.hpp>
+#include <thread>
+#include <mutex>
+
+#include <GL/gl.h>
 
 // Define SNES key constants
 #define SNES_KEY_UP      0
@@ -38,6 +41,8 @@ namespace Blaze {
 	static constexpr int defaultWindowHeight        = 600;
 	static constexpr const char* defaultWindowTitle = "Blaze";
 	static constexpr Color defaultWindowColor { 0, 0, 0 };
+	static constexpr int snesWidth = 640;
+	static constexpr int snesHeight = 480;
 
 #ifdef _WIN32
 	enum MenuID: UINT_PTR {
@@ -493,41 +498,43 @@ static void setContinuousExecution(bool continuousExecution) {
 };
 #endif
 
-static int createText(const std::string& text, const SDL_Color& color, TTF_Font* font, SDL_Renderer* renderer, SDL_Texture*& outTexture, int& outWidth, int& outHeight) {
-	SDL_Surface* tmpSurface = TTF_RenderUTF8_Solid_Wrapped(font, text.c_str(), color, 0);
-	if (!tmpSurface) {
-		return -1;
+static bool running = true;
+
+static void cpuThreadMain(SDL_Window* window) {
+	Blaze::Bus& bus = Blaze::bus;
+	SDL_GLContext ourGLContext = nullptr;
+
+	ourGLContext = SDL_GL_CreateContext(window);
+
+	while (running) {
+		if (Blaze::concat24(bus.cpu.PBR, bus.cpu.PC) == Blaze::breakpoint) {
+			Blaze::breakpoint = UINT32_MAX;
+			setContinuousExecution(false);
+			updateDisassembly();
+		}
+
+		if (Blaze::romLoaded && Blaze::continuousExecution) {
+			// execute a single instruction
+			bus.cpu.execute();
+		}
 	}
-
-	outTexture = SDL_CreateTextureFromSurface(renderer, tmpSurface);
-	if (!outTexture) {
-		SDL_FreeSurface(tmpSurface);
-		return -1;
-	}
-
-	outWidth = tmpSurface->w;
-	outHeight = tmpSurface->h;
-
-	SDL_FreeSurface(tmpSurface);
-
-	return 0;
 };
 
 int main(int argc, char** argv) {
-	SDL_Window* mainWindow;
-	SDL_Renderer* renderer;
-	SDL_Surface* surface;
+	SDL_Window* mainWindow = nullptr;
 	SDL_Event event;
 	std::map<int, bool> keyboard;
-	bool running = true;
 	SDL_SysWMinfo mainWindowInfo;
-	TTF_Font* font = nullptr;
 	bool& romLoaded = Blaze::romLoaded;
 	Blaze::Bus& bus = Blaze::bus;
 	bool holdingLeftControl = false;
 	bool holdingRightControl = false;
 	bool holdingLeftShift = false;
 	bool holdingRightShift = false;
+	SDL_GLContext theGLContext = nullptr;
+	std::thread cpuThread;
+	std::string debugConsoleOutput;
+	std::mutex debugConsoleMutex;
 
 #ifdef _WIN32
 	HWND win32MainWindow = nullptr;
@@ -545,37 +552,43 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-	if (TTF_Init() < 0) {
-		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to initialize SDL_ttf: %s", TTF_GetError());
-		return 1;
-	}
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+
+	SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
 
 #ifdef _WIN32
-	font = TTF_OpenFont("C:\\Windows\\Fonts\\FiraCode-Regular.ttf", 16);
+	DWORD fontFileAttrs = INVALID_FILE_ATTRIBUTES;
+
+	fontFileAttrs = GetFileAttributes(TEXT("C:\\Windows\\Fonts\\FiraCode-Regular.ttf"));
 	fontFace = TEXT("Fira Code");
 #else
 	#warning TODO
 #endif
-	if (!font) {
 #ifdef _WIN32
+	if (fontFileAttrs == INVALID_FILE_ATTRIBUTES || (fontFileAttrs & FILE_ATTRIBUTE_DIRECTORY) != 0) {
 		// try another font
-		font = TTF_OpenFont("C:\\Windows\\Fonts\\consola.ttf", 16);
+		fontFileAttrs = GetFileAttributes(TEXT("C:\\Windows\\Fonts\\consola.ttf"));
 		fontFace = TEXT("Consolas");
-		if (!font) {
-#else
-		#warning TODO
-#endif
-			SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load font: %s", TTF_GetError());
+		if (fontFileAttrs == INVALID_FILE_ATTRIBUTES || (fontFileAttrs & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+			SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load font");
 			return 1;
-#ifdef _WIN32
 		}
+	}
 #else
 		#warning TODO
 #endif
+
+	mainWindow = SDL_CreateWindow("Blaze", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, Blaze::defaultWindowWidth, Blaze::defaultWindowHeight, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+	if (mainWindow == nullptr) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create main window and renderer: %s", SDL_GetError());
+		SDL_Quit();
+		return 1;
 	}
 
-	if (SDL_CreateWindowAndRenderer(Blaze::defaultWindowWidth, Blaze::defaultWindowHeight, SDL_WINDOW_RESIZABLE, &mainWindow, &renderer) < 0) {
-		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create main window and renderer: %s", SDL_GetError());
+	theGLContext = SDL_GL_CreateContext(mainWindow);
+	if (theGLContext == nullptr) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create GL context: %s", SDL_GetError());
 		SDL_Quit();
 		return 1;
 	}
@@ -585,7 +598,6 @@ int main(int argc, char** argv) {
 	SDL_VERSION(&mainWindowInfo.version);
 	if (!SDL_GetWindowWMInfo(mainWindow, &mainWindowInfo)) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to get window handle: %s", SDL_GetError());
-		SDL_DestroyRenderer(renderer);
 		SDL_DestroyWindow(mainWindow);
 		SDL_Quit();
 		return 1;
@@ -641,7 +653,6 @@ int main(int argc, char** argv) {
 	win32DebuggerWindow = CreateWindowEx(0, Blaze::debuggerWindowClassName, TEXT("Debugger Window"), WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, Blaze::defaultDebuggerWindowWidth, Blaze::defaultDebuggerWindowHeight, nullptr, nullptr, Blaze::debuggerWindowClass.hInstance, nullptr);
 	if (win32DebuggerWindow == nullptr) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create debugger window: %lu", GetLastError());
-		SDL_DestroyRenderer(renderer);
 		SDL_DestroyWindow(mainWindow);
 		SDL_Quit();
 		return 1;
@@ -658,16 +669,14 @@ int main(int argc, char** argv) {
 	win32DebugConsoleWindow = CreateWindowEx(0, Blaze::debugConsoleWindowClassName, TEXT("Debug Console"), WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, Blaze::defaultDebugConsoleWindowWidth, Blaze::defaultDebugConsoleWindowHeight, nullptr, nullptr, Blaze::debugConsoleWindowClass.hInstance, nullptr);
 	if (win32DebugConsoleWindow == nullptr) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create debugger window: %lu", GetLastError());
-		SDL_DestroyRenderer(renderer);
 		SDL_DestroyWindow(mainWindow);
 		SDL_Quit();
 		return 1;
 	}
 #endif // _WIN32
 
-	std::string debugBuffer;
-	std::string debugConsoleOutput;
 	bus.cpu.putCharacterHook = [&](char character) {
+		std::unique_lock lock(debugConsoleMutex);
 		debugConsoleOutput.push_back(character);
 		updateConsole(debugConsoleOutput);
 	};
@@ -675,6 +684,9 @@ int main(int argc, char** argv) {
 	if (argc > 1) {
 		std::string path = argv[1];
 		std::stringstream output;
+		bool romSuccessfullyLoaded = false;
+
+		romLoaded = false;
 
 		output << "Got ROM: " << path;
 		output << '\n';
@@ -690,7 +702,7 @@ int main(int argc, char** argv) {
 				// when a ROM is loaded, we need to reset all components
 				bus.reset();
 
-				romLoaded = true;
+				romSuccessfullyLoaded = true;
 
 				updateDisassembly();
 			}
@@ -700,8 +712,25 @@ int main(int argc, char** argv) {
 
 		output << '\n';
 
-		debugBuffer = output.str();
+		{
+			std::unique_lock lock(debugConsoleMutex);
+			debugConsoleOutput += output.str();
+			updateConsole(debugConsoleOutput);
+		}
+
+		romLoaded = romSuccessfullyLoaded;
 	}
+
+	// set up the GL context
+	glClearColor(Blaze::defaultWindowColor.r, Blaze::defaultWindowColor.g, Blaze::defaultWindowColor.b, Blaze::defaultWindowColor.a);
+	glMatrixMode(GL_PROJECTION_MATRIX);
+	glLoadIdentity();
+	glMatrixMode(GL_MODELVIEW_MATRIX);
+	glLoadIdentity();
+	glViewport(0, 0, Blaze::defaultWindowWidth, Blaze::defaultWindowHeight);
+
+	// create the CPU thread
+	cpuThread = std::thread(cpuThreadMain, mainWindow);
 
 	// main event loop
 	while (running) {
@@ -783,6 +812,9 @@ int main(int argc, char** argv) {
 						case Blaze::MenuID::FileOpen: {
 							std::string path;
 							std::stringstream output;
+							bool romSuccessfullyLoaded = false;
+
+							romLoaded = false;
 
 							if (openROMDialog(path)) {
 								output << "Got ROM: " << path;
@@ -799,12 +831,9 @@ int main(int argc, char** argv) {
 										// when a ROM is loaded, we need to reset all components
 										bus.reset();
 
-										romLoaded = true;
-										debugBuffer = "";
-										debugConsoleOutput = "";
+										romSuccessfullyLoaded = true;
 
 										updateDisassembly();
-										updateConsole(debugConsoleOutput);
 									}
 								} catch (const std::runtime_error& e) {
 									output << "Failed to load ROM:\n" << e.what();
@@ -815,20 +844,29 @@ int main(int argc, char** argv) {
 
 							output << '\n';
 
-							debugBuffer = output.str();
+							{
+								std::unique_lock lock(debugConsoleMutex);
+								debugConsoleOutput = output.str();
+								updateConsole(debugConsoleOutput);
+							}
+
+							romLoaded = romSuccessfullyLoaded;
 						} break;
 
 						case Blaze::MenuID::FileClose: {
+							romLoaded = false;
+
 							// when a ROM is unloaded, we need to reset all components
 							bus.reset();
 							bus.rom.reset(&bus); // we also reset the ROM
 
-							romLoaded = false;
-							debugBuffer = "";
-							debugConsoleOutput = "";
-
 							updateDisassembly();
-							updateConsole(debugConsoleOutput);
+
+							{
+								std::unique_lock lock(debugConsoleMutex);
+								debugConsoleOutput = "";
+								updateConsole(debugConsoleOutput);
+							}
 						} break;
 
 						case Blaze::MenuID::FileExit: {
@@ -864,6 +902,12 @@ int main(int argc, char** argv) {
 				break;
 #endif // _WIN32
 
+			case SDL_WINDOWEVENT: {
+				if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+					glViewport(0, 0, event.window.data1, event.window.data2);
+				}
+			} break;
+
 			default:
 				break;
 			}
@@ -873,49 +917,17 @@ int main(int argc, char** argv) {
 			break;
 		}
 
-		// clear the window
-		SDL_SetRenderDrawColor(renderer, Blaze::defaultWindowColor.r, Blaze::defaultWindowColor.g, Blaze::defaultWindowColor.b, Blaze::defaultWindowColor.a);
-		SDL_RenderClear(renderer);
+		// clear the display
+		glClear(GL_COLOR_BUFFER_BIT);
 
-		if (Blaze::concat24(bus.cpu.PBR, bus.cpu.PC) == Blaze::breakpoint) {
-			Blaze::breakpoint = UINT32_MAX;
-			setContinuousExecution(false);
-			updateDisassembly();
-		}
-
-		if (romLoaded && Blaze::continuousExecution) {
-			// execute a single instruction
-			bus.cpu.execute();
-		}
-
-		// render the debug buffer
-		if (!debugBuffer.empty()) {
-			SDL_Rect rect = {
-				0, 0,
-			};
-			SDL_Color color = {
-				// white
-				255, 255, 255,
-			};
-			SDL_Texture* texture = nullptr;
-
-			if (createText(debugBuffer, color, font, renderer, texture, rect.w, rect.h) < 0) {
-				SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create text texture: %s", SDL_GetError());
-				abort();
-			}
-			SDL_RenderCopy(renderer, texture, nullptr, &rect);
-			SDL_DestroyTexture(texture);
-		}
-
-		SDL_RenderPresent(renderer);
+		SDL_GL_SwapWindow(mainWindow);
 	}
 
-	SDL_DestroyRenderer(renderer);
+	cpuThread.join();
+
+	SDL_GL_DeleteContext(theGLContext);
 	SDL_DestroyWindow(mainWindow);
 
-	TTF_CloseFont(font);
-
-	TTF_Quit();
 	SDL_Quit();
 
 	return 0;
