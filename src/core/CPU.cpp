@@ -132,9 +132,20 @@ void Blaze::CPU::irq() {
 		store16(SP - 1, PC);
 		SP -= 2;
 
-		// Set some interrupt flags first and then push the status register onto the stack
-		setFlag(flags::b, false);
+		Byte processorStatus = P;
+
+		// if we're in emulation mode, then bit 4 of the processor status is actually the break bit instead of the index register size bit.
+		// let's clear it to indicate this is an external interrupt and not a BRK interrupt.
+		if (usingEmulationMode()) {
+			processorStatus &= ~flags::b;
+		}
+
+		// disable further interrupts
 		setFlag(flags::i, true);
+		// disable decimal mode
+		setFlag(flags::d, false);
+
+		// push the status register onto the stack
 		store8(SP, P);
 		SP--;
 
@@ -147,6 +158,9 @@ void Blaze::CPU::irq() {
 		// Handling IRQs takes 7 CPU cycles
 		cyclesCountDown = 7;
 	}
+
+	// we just received an interrupt, so we're no longer waiting for one
+	waitingForInterrupt = false;
 }
 
 void Blaze::CPU::nmi() {
@@ -159,9 +173,20 @@ void Blaze::CPU::nmi() {
 	store16(SP - 1, PC);
 	SP -= 2;
 
-	setFlag(flags::b, false);
+	Byte processorStatus = P;
+
+	// see irq() for why we do this
+	if (usingEmulationMode()) {
+		processorStatus &= ~flags::b;
+	}
+
+	// disable interrupts
 	setFlag(flags::i, true);
-	store8(SP, P);
+	// disable decimal mode
+	setFlag(flags::d, false);
+
+	// store the processor status
+	store8(SP, processorStatus);
 	SP--;
 
 	// the PBR is forced to 0
@@ -170,16 +195,28 @@ void Blaze::CPU::nmi() {
 	PC = load16(usingEmulationMode() ? ExceptionVectorAddress::EmulatedNMI : ExceptionVectorAddress::NativeNMI);
 
 	cyclesCountDown = 8;
+
+	// we just received an interrupt, so we're no longer waiting for one
+	waitingForInterrupt = false;
 }
 
 void Blaze::CPU::abort() {
-	store8(SP, PBR);
-	SP--;
+	if (!usingEmulationMode()) {
+		store8(SP, PBR);
+		SP--;
+	}
 
 	store16(SP - 1, PC);
 	SP -= 2;
 
-	store8(SP, P);
+	Byte processorStatus = P;
+
+	// see irq() for why we do this
+	if (usingEmulationMode()) {
+		processorStatus &= ~flags::b;
+	}
+
+	store8(SP, processorStatus);
 	SP--;
 
 	setFlag(flags::i, true);
@@ -190,6 +227,9 @@ void Blaze::CPU::abort() {
 	PC = load16(usingEmulationMode() ? ExceptionVectorAddress::EmulatedABORT : ExceptionVectorAddress::NativeABORT);
 
 	cyclesCountDown = 8;
+
+	// we just received an interrupt, so we're no longer waiting for one
+	waitingForInterrupt = false;
 }
 
 void Blaze::CPU::setZeroNegFlags(const Register& reg) {
@@ -208,9 +248,10 @@ void Blaze::CPU::setOverflowFlag(Word leftOperand, Word rightOperand, Word resul
 };
 
 void Blaze::CPU::execute() {
-
-	// Read first 8 bytes of next instruction
-	//Byte* instruction = bus->read(PC);
+	if (stopped || waitingForInterrupt) {
+		// if the processor is stopped or waiting for an interrupt, there's nothing for us to do
+		return;
+	}
 
 	// update `executingPC` to point to the instruction we're about to execute
 	executingPC = concat24(PBR, PC);
@@ -933,24 +974,33 @@ Blaze::Cycles Blaze::CPU::invalidInstruction() {
 };
 
 Blaze::Cycles Blaze::CPU::executeBRK() {
-	// Push PC+2 onto the stack
-    store16(SP - 1, PC + 2);
-    SP -= 2;
+	if (!usingEmulationMode()) {
+		// in native mode: push the PBR
+		store8(SP, PBR);
+		SP--;
+	}
 
-    // Push processor status onto the stack with the break flag set
-    setFlag(flags::b, true);
-    store8(SP, P | 0x10);
-    SP--;
+	// Push the next PC onto the stack
+	store16(SP - 1, PC);
+	SP -= 2;
 
-    // Disable further interrupts
-    setFlag(flags::i, true);
+	// Push processor status onto the stack
+	// if we're using emulation mode, we have to have the break flag set
+	store8(SP, P | (usingEmulationMode() ? flags::b : 0));
+	SP--;
 
-    // Fetch the interrupt vector for IRQ
-    // BRK uses the IRQ vector
-    PC = load16(usingEmulationMode() ? ExceptionVectorAddress::EmulatedIRQ : ExceptionVectorAddress::NativeIRQ);
+	// Disable further interrupts
+	setFlag(flags::i, true);
+	// disable decimal mode
+	setFlag(flags::d, false);
 
-    // Set cycles for BRK instruction
-    cyclesCountDown = 7;
+	// Fetch the interrupt vector for IRQ
+	// BRK uses the IRQ vector in emulation mode
+	PBR = 0;
+	PC = load16(usingEmulationMode() ? ExceptionVectorAddress::EmulatedIRQ : ExceptionVectorAddress::NativeBRK);
+
+	// Set cycles for BRK instruction
+	cyclesCountDown = 7;
 	return 0;
 };
 
@@ -1134,7 +1184,6 @@ Blaze::Cycles Blaze::CPU::executePHK() {
 Blaze::Cycles Blaze::CPU::executePHP() {
 	store8(SP, P);
 	SP--;
-	setFlag(flags::b, false);
 	return 0;
 };
 
@@ -1244,12 +1293,20 @@ Blaze::Cycles Blaze::CPU::executeREP() {
 };
 
 Blaze::Cycles Blaze::CPU::executeRTI() {
-    SP++;
-    P = load8(SP);
-    // Pop the program counter from the stack
-    PC = load16(SP + 1);
-    SP += 2;
-	setFlag(flags::b, false);
+	SP++;
+	P = load8(SP);
+	// Pop the program counter from the stack
+	PC = load16(SP + 1);
+	SP += 2;
+	if (usingEmulationMode()) {
+		// ensure the x and m bits are set
+		setFlag(flags::x, true);
+		setFlag(flags::m, true);
+	} else {
+		// pop the PBR from the stack
+		SP++;
+		PBR = load8(SP);
+	}
 	return 0;
 };
 
@@ -1297,13 +1354,6 @@ Blaze::Cycles Blaze::CPU::executeSEP() {
 };
 
 Blaze::Cycles Blaze::CPU::executeSTP() {
-	/*
-	// Do nothing until there is an interrup
-	while(true)
-	{
-		// Check for interrupt
-	}
-	*/
 	stopped = true;
 	return 0;
 };
@@ -1388,24 +1438,6 @@ Blaze::Cycles Blaze::CPU::executeTYX() {
 };
 
 Blaze::Cycles Blaze::CPU::executeWAI() {
-	/*
-	// wait until there is an interrupt
-	while(true)
-	{
-		// Interrupt mask is set: continue with next instruction and then interrupt
-		//if()//There is an interrupt
-		{
-			if(flags::i)
-			{
-				// launch next instruction before going to interrupt
-			}
-			else
-			{
-
-			}
-		}
-	}
-	*/
 	waitingForInterrupt = true;
 	return 0;
 };
