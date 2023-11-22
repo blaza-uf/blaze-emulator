@@ -443,7 +443,7 @@ static LRESULT CALLBACK debugConsoleWindowProc(HWND hwnd, UINT uMsg, WPARAM wPar
 
 			hFont = CreateFont(0, 0, 0, 0, FW_DONTCARE, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, fontFace);
 
-			win32DebugConsoleTextWindow = CreateWindowEx(0, TEXT("Edit"), nullptr, WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_HSCROLL | ES_LEFT | ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_READONLY, 0, 0, 0, 0, hwnd, (HMENU)Blaze::MenuID::DebugConsoleTextView, hInst, nullptr);
+			win32DebugConsoleTextWindow = CreateWindowEx(0, TEXT("Edit"), nullptr, WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_LEFT | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY, 0, 0, 0, 0, hwnd, (HMENU)Blaze::MenuID::DebugConsoleTextView, hInst, nullptr);
 			if (!win32DebugConsoleTextWindow) {
 				abort();
 			}
