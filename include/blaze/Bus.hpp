@@ -25,6 +25,12 @@ namespace Blaze
 		MemRam ram;
 		ROM rom;
 
+		//=== Devices connected to the bus but not owned by the bus ===
+		//
+		// these devices are typically devices that require GUI integration (e.g. graphics, controllers, audio, etc.).
+		// we simply keep pointers to these devices (so we can access them) but we do not own them.
+		MMIODevice* ppu = nullptr;
+
 		//=== Constructor & Destructor ===
 		Bus();
 

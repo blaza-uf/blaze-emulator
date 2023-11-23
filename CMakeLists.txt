@@ -45,6 +45,7 @@ find_package(OpenGL REQUIRED COMPONENTS OpenGL)
 
 add_executable(blaze WIN32
 	src/gui/blaze.cpp
+	src/gui/PPU.cpp
 )
 
 target_link_libraries(blaze PRIVATE blaze-core)

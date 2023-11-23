@@ -13,6 +13,7 @@
 #include <blaze/util.hpp>
 #include <thread>
 #include <mutex>
+#include <blaze/PPU.hpp>
 
 #include <GL/gl.h>
 
@@ -41,8 +42,8 @@ namespace Blaze {
 	static constexpr int defaultWindowHeight        = 600;
 	static constexpr const char* defaultWindowTitle = "Blaze";
 	static constexpr Color defaultWindowColor { 0, 0, 0 };
-	static constexpr int snesWidth = 640;
-	static constexpr int snesHeight = 480;
+	static constexpr int snesWidth = 352;
+	static constexpr int snesHeight = 240;
 
 #ifdef _WIN32
 	enum MenuID: UINT_PTR {
@@ -535,6 +536,9 @@ int main(int argc, char** argv) {
 	std::thread cpuThread;
 	std::string debugConsoleOutput;
 	std::mutex debugConsoleMutex;
+	Blaze::PPU ppu;
+
+	bus.ppu = &ppu;
 
 #ifdef _WIN32
 	HWND win32MainWindow = nullptr;
@@ -734,6 +738,8 @@ int main(int argc, char** argv) {
 
 	// main event loop
 	while (running) {
+		ppu.beginVBlank();
+
 		// process all events for this frame
 		while (SDL_PollEvent(&event)) {
 			int snesKey;
@@ -920,6 +926,7 @@ int main(int argc, char** argv) {
 		// clear the display
 		glClear(GL_COLOR_BUFFER_BIT);
 
+		ppu.endVBlank();
 		SDL_GL_SwapWindow(mainWindow);
 	}
 

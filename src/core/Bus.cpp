@@ -79,6 +79,9 @@ namespace Blaze
 		ram.reset(this);
 		// *don't* reset the ROM
 		//rom.reset(this);
+		if (ppu != nullptr) {
+			ppu->reset(this);
+		}
 		cpu.reset(this);
 	};
 }
@@ -96,6 +99,12 @@ void Blaze::Bus::findDeviceAndOffset(Address fullAddress, MMIODevice*& outDevice
 	// for both LoROM and HiROM, banks $80 through $FD are a mirror of banks $00 through $7D
 	if (bank >= 0x80 && bank <= 0xfd) {
 		bank -= 0x80;
+	}
+
+	if (bank == 0x00 && addr >= 0x2100 && addr <= 0x213f) {
+		// the PPU has memory-mapped registers from $2100 through $213F
+		outDevice = ppu;
+		outOffset = addr - 0x2100;
 	}
 
 	// banks $7E and $7F map the full 128 KiB of RAM

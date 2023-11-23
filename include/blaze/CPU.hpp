@@ -12,8 +12,9 @@ namespace Blaze {
 	using ClockTicks = uint32_t;
 	using Cycles = uint32_t;
 
-	// Avoid circular inclusions by declaring BusInterface
+	// Avoid circular inclusions by declaring BusInterface and Bus
 	struct BusInterface;
+	struct Bus;
 
 	struct CPU {
 		// TODO: Link to the system bus
