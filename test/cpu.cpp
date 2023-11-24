@@ -1072,7 +1072,7 @@ TEST_CASE("TXY", "[cpu][instruction]") {
 				cpu.X.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.Y.load() == cpu.X.load();
+				REQUIRE(cpu.Y.load() == cpu.X.load());
 				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
