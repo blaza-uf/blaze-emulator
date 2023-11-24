@@ -930,7 +930,8 @@ TEST_CASE("PLP", "[cpu][instruction]") {
 				cpu.setFlag(CPU::flags::x, usingEmulatorMode);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.P == val);
+				auto expectedVal = val | (usingEmulatorMode ? (CPU::flags::m | CPU::flags::x) : 0);
+				REQUIRE(cpu.P == expectedVal);
 				REQUIRE(cpu.SP == initialSP + 1);
 				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
