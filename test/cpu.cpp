@@ -1171,7 +1171,7 @@ TEST_CASE("TCD", "[cpu][instruction]") {
 			/*addExpectedBusAccesses=*/noopAddBusAccesses,
 			/*setup=*/[&](CPU& cpu) {
 				cpu.e = usingEmulatorMode ? 1 : 0;
-				cpu.A.forcrStoreFull(val);
+				cpu.A.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
 				REQUIRE(cpu.DR == cpu.A.load());
