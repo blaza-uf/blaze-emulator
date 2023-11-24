@@ -17,7 +17,6 @@ endif()
 
 if(SDL_VENDORED)
 	add_subdirectory(vendor/sdl EXCLUDE_FROM_ALL)
-	add_subdirectory(vendor/SDL_ttf EXCLUDE_FROM_ALL)
 else()
 	# the first line means that the core SDL2 components are required,
 	# while the second line means that the SDL2-main component is *not* required.
@@ -25,8 +24,6 @@ else()
 	# the SDL2-main component is only available on certain platforms (e.g. Windows).
 	find_package(SDL2 REQUIRED CONFIG REQUIRED COMPONENTS SDL2)
 	find_package(SDL2 REQUIRED CONFIG COMPONENTS SDL2main)
-
-	find_package(SDL2_ttf REQUIRED CONFIG)
 endif()
 
 add_subdirectory(vendor/catch2 EXCLUDE_FROM_ALL)
@@ -44,8 +41,11 @@ target_include_directories(blaze-core PUBLIC
 	include
 )
 
+find_package(OpenGL REQUIRED COMPONENTS OpenGL)
+
 add_executable(blaze WIN32
 	src/gui/blaze.cpp
+	src/gui/PPU.cpp
 )
 
 target_link_libraries(blaze PRIVATE blaze-core)
@@ -57,7 +57,7 @@ if(TARGET SDL2::SDL2main)
 	target_link_libraries(blaze PRIVATE SDL2::SDL2main)
 endif()
 
-target_link_libraries(blaze PRIVATE SDL2::SDL2-static SDL2_ttf::SDL2_ttf-static)
+target_link_libraries(blaze PRIVATE SDL2::SDL2-static OpenGL::GL)
 
 add_executable(blaze-core-tests
 	test/color.cpp
