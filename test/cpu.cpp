@@ -1114,7 +1114,7 @@ TEST_CASE("TSX", "[cpu][instruction]") {
 				cpu.SP = val;
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.X.load() == cpu.SP;
+				REQUIRE(cpu.X.load() == cpu.SP);
 				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
