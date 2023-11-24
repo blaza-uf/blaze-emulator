@@ -913,8 +913,6 @@ TEST_CASE("PHP", "[cpu][instruction]") {
 TEST_CASE("PLP", "[cpu][instruction]") {
 	auto usingEmulatorMode = GENERATE(false, true);
 	auto val = GENERATE_COPY(take(1, random<Address>(0, 0xff + 1)));
-	bool resultIsZero = val == 0;
-	bool resultIsNegative = msb8(val);
 	DYNAMIC_SECTION(8 << "-bit") {
 		Word initialSP = 0;
 
