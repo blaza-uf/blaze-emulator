@@ -931,8 +931,6 @@ TEST_CASE("PLP", "[cpu][instruction]") {
 				auto expectedVal = val | (usingEmulatorMode ? (CPU::flags::m | CPU::flags::x) : 0);
 				REQUIRE(cpu.P == expectedVal);
 				REQUIRE(cpu.SP == initialSP + 1);
-				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
-				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
 		);
 	}
