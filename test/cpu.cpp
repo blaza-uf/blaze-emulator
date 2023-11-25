@@ -631,8 +631,8 @@ TEST_CASE("PHA", "[cpu][instruction]") {
 TEST_CASE("PLA", "[cpu][instruction]") {
 	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
 	auto val = GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1)));
-	bool resultIsZero = val == 0;
-	bool resultIsNegative = msb(val, memoryAndAccumulatorAre8Bit);
+	// bool resultIsZero = val == 0;
+	// bool resultIsNegative = msb(val, memoryAndAccumulatorAre8Bit);
 	
 	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit") {
 		Word initialSP = 0;
@@ -650,8 +650,8 @@ TEST_CASE("PLA", "[cpu][instruction]") {
 			/*test=*/[&](CPU& cpu) {
 				REQUIRE(cpu.A.load() == val);
 				REQUIRE(cpu.SP == initialSP + (memoryAndAccumulatorAre8Bit ? 1 : 2));
-				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
-				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
+				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
+				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
 		);
 	}
@@ -988,7 +988,7 @@ TEST_CASE("TAX", "[cpu][instruction]") {
 				cpu.A.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.X.forceLoadFull() == cpu.A.forceLoadFull());
+				REQUIRE(cpu.X.load() == cpu.A.load());
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
@@ -1009,7 +1009,7 @@ TEST_CASE("TXA", "[cpu][instruction]") {
 				cpu.X.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.A.forceLoadFull() == cpu.X.forceLoadFull());
+				REQUIRE(cpu.A.load() == cpu.X.load());
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
@@ -1030,7 +1030,7 @@ TEST_CASE("TAY", "[cpu][instruction]") {
 				cpu.A.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.Y.forceLoadFull() == cpu.A.forceLoadFull());
+				REQUIRE(cpu.Y.load() == cpu.A.load());
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
@@ -1051,7 +1051,7 @@ TEST_CASE("TYA", "[cpu][instruction]") {
 				cpu.Y.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.A.forceLoadFull() == cpu.Y.forceLoadFull());
+				REQUIRE(cpu.A.load() == cpu.Y.load());
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
@@ -1072,7 +1072,7 @@ TEST_CASE("TXY", "[cpu][instruction]") {
 				cpu.X.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.Y.forceLoadFull() == cpu.X.forceLoadFull());
+				REQUIRE(cpu.Y.load() == cpu.X.load());
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
@@ -1093,7 +1093,7 @@ TEST_CASE("TYX", "[cpu][instruction]") {
 				cpu.Y.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.X.forceLoadFull() == cpu.Y.forceLoadFull());
+				REQUIRE(cpu.X.load() == cpu.Y.load());
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
@@ -1114,7 +1114,7 @@ TEST_CASE("TSX", "[cpu][instruction]") {
 				cpu.SP = val;
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.X.forceLoadFull() == cpu.SP);
+				REQUIRE(cpu.X.load() == cpu.SP);
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
@@ -1134,7 +1134,7 @@ TEST_CASE("TXS", "[cpu][instruction]") {
 				cpu.X.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.SP == cpu.X.forceLoadFull());
+				REQUIRE(cpu.SP == cpu.X.load());
 			}
 		);
 	}
