@@ -967,7 +967,7 @@ TEST_CASE("TSC", "[cpu][instruction]") {
 				cpu.SP = val;
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.A.load() == cpu.SP);
+				REQUIRE(cpu.A.forceLoadFull() == cpu.SP);
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
@@ -988,7 +988,7 @@ TEST_CASE("TAX", "[cpu][instruction]") {
 				cpu.A.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.X.load() == cpu.A.forceLoadFull());
+				REQUIRE(cpu.X.forceLoadFull() == cpu.A.forceLoadFull());
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
@@ -1009,7 +1009,7 @@ TEST_CASE("TXA", "[cpu][instruction]") {
 				cpu.X.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.A.load() == cpu.X.load());
+				REQUIRE(cpu.A.forceLoadFull() == cpu.X.forceLoadFull());
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
@@ -1030,7 +1030,7 @@ TEST_CASE("TAY", "[cpu][instruction]") {
 				cpu.A.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.Y.load() == cpu.A.forceLoadFull());
+				REQUIRE(cpu.Y.forceLoadFull() == cpu.A.forceLoadFull());
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
@@ -1051,7 +1051,7 @@ TEST_CASE("TYA", "[cpu][instruction]") {
 				cpu.Y.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.A.load() == cpu.Y.load());
+				REQUIRE(cpu.A.forceLoadFull() == cpu.Y.forceLoadFull());
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
@@ -1072,7 +1072,7 @@ TEST_CASE("TXY", "[cpu][instruction]") {
 				cpu.X.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.Y.load() == cpu.X.load());
+				REQUIRE(cpu.Y.forceLoadFull() == cpu.X.forceLoadFull());
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
@@ -1093,7 +1093,7 @@ TEST_CASE("TYX", "[cpu][instruction]") {
 				cpu.Y.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.X.load() == cpu.Y.load());
+				REQUIRE(cpu.X.forceLoadFull() == cpu.Y.forceLoadFull());
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
@@ -1114,7 +1114,7 @@ TEST_CASE("TSX", "[cpu][instruction]") {
 				cpu.SP = val;
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.X.load() == cpu.SP);
+				REQUIRE(cpu.X.forceLoadFull() == cpu.SP);
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
@@ -1134,7 +1134,7 @@ TEST_CASE("TXS", "[cpu][instruction]") {
 				cpu.X.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.SP == cpu.X.load());
+				REQUIRE(cpu.SP == cpu.X.forceLoadFull());
 			}
 		);
 	}
@@ -1153,7 +1153,7 @@ TEST_CASE("TDC", "[cpu][instruction]") {
 				cpu.DR = val;
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.A.load() == cpu.DR);
+				REQUIRE(cpu.A.forceLoadFull() == cpu.DR);
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
@@ -1174,7 +1174,7 @@ TEST_CASE("TCD", "[cpu][instruction]") {
 				cpu.A.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.DR == cpu.A.load());
+				REQUIRE(cpu.DR == cpu.A.forceLoadFull());
 				// REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				// REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
