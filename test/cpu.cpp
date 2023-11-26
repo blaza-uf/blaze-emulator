@@ -1086,6 +1086,7 @@ TEST_CASE("TSX", "[cpu][instruction]") {
 			/*setup=*/[&](CPU& cpu) {
 				cpu.e = 0;
 				cpu.SP = val;
+				cpu.setFlag(CPU::flags::x, indexRegistersAre8Bit);
 			},
 			/*test=*/[&](CPU& cpu) {
 				REQUIRE(cpu.X.load() == cpu.SP);
