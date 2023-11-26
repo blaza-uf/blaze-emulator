@@ -1107,7 +1107,8 @@ TEST_CASE("TXS", "[cpu][instruction]") {
 				cpu.X.forceStoreFull(val);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.SP == cpu.X.load());
+				auto expectedVal = cpu.X.load() | (usingEmulatorMode ? 0x0100 : 0);
+				REQUIRE(cpu.SP == expectedVal);
 			}
 		);
 	}
