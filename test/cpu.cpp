@@ -1495,7 +1495,7 @@ TEST_CASE("BIT", "[cpu][instruction]") {
 	auto result = lhs & rhs;
 	bool resultIsZero = result == 0;
 	bool resultIsNegative = msb(rhs, memoryAndAccumulatorAre8Bit);
-	bool resultHasOverflow = memoryAndAccumulatorAre8Bit ? (rhs & (1u << 6)) != 0) : (rhs & (1u << 14)) != 0);
+	bool resultHasOverflow = memoryAndAccumulatorAre8Bit ? ((rhs & (1u << 6)) != 0) : ((rhs & (1u << 14)) != 0);
 	
 	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit; ") {
 		testInstructionWithOperand(Opcode::BIT, memoryAndAccumulatorAre8Bit ? 8 : 16, rhs,
@@ -1515,7 +1515,7 @@ TEST_CASE("BIT", "[cpu][instruction]") {
 			/*test=*/[&](CPU& cpu) {
 				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
-				REQUIRE(cpu.getFlag(CPU::flags::c) == resultHasCarry);
+				REQUIRE(cpu.getFlag(CPU::flags::v) == resultHasOverflow);
 			}
 		);
 	}
