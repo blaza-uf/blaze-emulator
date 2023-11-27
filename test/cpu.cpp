@@ -1513,7 +1513,7 @@ TEST_CASE("BIT", "[cpu][instruction]") {
 }
 
 
-TEST_CASE("INC", "[cpu][instruction]", [!mayfail]) {
+TEST_CASE("INC", "[cpu][instruction][!mayfail]") {
 	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
 	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
 	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
@@ -1545,7 +1545,7 @@ TEST_CASE("INC", "[cpu][instruction]", [!mayfail]) {
 	}
 }
 
-TEST_CASE("DEC", "[cpu][instruction]", [!mayfail]) {
+TEST_CASE("DEC", "[cpu][instruction][!mayfail]") {
 	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
 	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
 	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
@@ -1577,7 +1577,6 @@ TEST_CASE("DEC", "[cpu][instruction]", [!mayfail]) {
 		);
 	}
 }
-
 
 TEST_CASE("INX", "[cpu][instruction]") {
 	auto indexRegistersAre8Bit = GENERATE(false, true);
@@ -1829,7 +1828,7 @@ TEST_CASE("SEP", "[cpu][instruction]") {
 	}
 }
 
-TEST_CASE("TRB", "[cpu][instruction]", [!mayfail]) {
+TEST_CASE("TRB", "[cpu][instruction][!mayfail]") {
 	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
 	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
 	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
@@ -1859,7 +1858,7 @@ TEST_CASE("TRB", "[cpu][instruction]", [!mayfail]) {
 	}
 }
 
-TEST_CASE("TSB", "[cpu][instruction]", [!mayfail]) {
+TEST_CASE("TSB", "[cpu][instruction][!mayfail]") {
 	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
 	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
 	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
@@ -1889,7 +1888,7 @@ TEST_CASE("TSB", "[cpu][instruction]", [!mayfail]) {
 	}
 }
 
-TEST_CASE("STZ", "[cpu][instruction]", [!mayfail]) {
+TEST_CASE("STZ", "[cpu][instruction][!mayfail]") {
 	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
 	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
 	
