@@ -1786,7 +1786,10 @@ TEST_CASE("REP", "[cpu][instruction]") {
 	auto result = valP & ~val;
 	
 	DYNAMIC_SECTION((usingEmulatorMode ? 8 : 16) << "-bit") {
-		testInstruction(Opcode::REP, AddressingMode::Immediate,
+		testInstructionWithOperand(Opcode::REP, 8, val,
+		{
+			AddressingMode::Immediate,
+		},
 			/*addExpectedBusAccesses=*/noopAddBusAccesses,
 			/*setup=*/[&](CPU& cpu) {
 				cpu.e = usingEmulatorMode ? 1 : 0;
