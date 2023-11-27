@@ -1323,13 +1323,12 @@ TEST_CASE("CMP", "[cpu][instruction]") {
 
 TEST_CASE("LDA", "[cpu][instruction]") {
 	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
-	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
-	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
-	bool resultIsZero = lhs == 0;
-	bool resultIsNegative = msb(lhs, memoryAndAccumulatorAre8Bit);
+	auto val = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	bool resultIsZero = val == 0;
+	bool resultIsNegative = msb(val, memoryAndAccumulatorAre8Bit);
 
 	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit; ") {
-		testInstructionWithOperand(Opcode::LDA, memoryAndAccumulatorAre8Bit ? 8 : 16, rhs,
+		testInstructionWithOperand(Opcode::LDA, memoryAndAccumulatorAre8Bit ? 8 : 16, val,
 			{
 				AddressingMode::DirectIndexedIndirect,
 				AddressingMode::Direct,
@@ -1350,11 +1349,10 @@ TEST_CASE("LDA", "[cpu][instruction]") {
 			/*addExpectedBusAccesses=*/noopAddBusAccesses,
 			/*setup=*/[&](CPU& cpu) {
 				cpu.e = 0;
-				cpu.A.forceStoreFull(lhs);
 				cpu.setFlag(CPU::flags::m, memoryAndAccumulatorAre8Bit);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.A.load() == rhs);
+				REQUIRE(cpu.A.load() == val);
 				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
