@@ -1791,8 +1791,10 @@ TEST_CASE("REP", "[cpu][instruction]") {
 			/*setup=*/[&](CPU& cpu) {
 				cpu.e = usingEmulatorMode ? 1 : 0;
 				cpu.P = valP;
-				cpu.setFlag(CPU::flags::m, usingEmulatorMode);
-				cpu.setFlag(CPU::flags::x, usingEmulatorMode);
+				if (usingEmulatorMode) {
+					cpu.setFlag(CPU::flags::m, true);
+					cpu.setFlag(CPU::flags::x, true);
+				}
 			},
 			/*test=*/[&](CPU& cpu) {
 				auto expectedVal = result | (usingEmulatorMode ? (CPU::flags::m | CPU::flags::x) : 0);
