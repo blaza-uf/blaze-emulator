@@ -1156,8 +1156,8 @@ TEST_CASE("AND", "[cpu][instruction]") {
 	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
 	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
 	auto result = lhs & rhs;
-	bool resultIsZero = lhs == 0;
-	bool resultIsNegative = msb(lhs, memoryAndAccumulatorAre8Bit);
+	bool resultIsZero = result == 0;
+	bool resultIsNegative = msb(result, memoryAndAccumulatorAre8Bit);
 
 	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit; ") {
 		testInstructionWithOperand(Opcode::AND, memoryAndAccumulatorAre8Bit ? 8 : 16, rhs,
