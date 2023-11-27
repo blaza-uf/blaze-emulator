@@ -1423,7 +1423,7 @@ TEST_CASE("CPX", "[cpu][instruction]") {
 	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1))));
 	auto result = lhs - rhs;
 	bool resultIsZero = lhs == rhs;
-	bool resultIsNegative = msb(lhs, indexRegistersAre8Bit);
+	bool resultIsNegative = msb(result, indexRegistersAre8Bit);
 	bool resultHasCarry = lhs >= rhs;
 
 	DYNAMIC_SECTION((indexRegistersAre8Bit ? 8 : 16) << "-bit; ") {
@@ -1454,7 +1454,7 @@ TEST_CASE("CPY", "[cpu][instruction]") {
 	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1))));
 	auto result = lhs - rhs;
 	bool resultIsZero = lhs == rhs;
-	bool resultIsNegative = msb(lhs, indexRegistersAre8Bit);
+	bool resultIsNegative = msb(result, indexRegistersAre8Bit);
 	bool resultHasCarry = lhs >= rhs;
 
 	DYNAMIC_SECTION((indexRegistersAre8Bit ? 8 : 16) << "-bit; ") {
