@@ -1362,13 +1362,12 @@ TEST_CASE("LDA", "[cpu][instruction]") {
 
 TEST_CASE("LDX", "[cpu][instruction]") {
 	auto indexRegistersAre8Bit = GENERATE(false, true);
-	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1))));
-	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1))));
-	bool resultIsZero = lhs == 0;
-	bool resultIsNegative = msb(lhs, indexRegistersAre8Bit);
+	auto val = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1))));
+	bool resultIsZero = val == 0;
+	bool resultIsNegative = msb(val, indexRegistersAre8Bit);
 
 	DYNAMIC_SECTION((indexRegistersAre8Bit ? 8 : 16) << "-bit; ") {
-		testInstructionWithOperand(Opcode::LDX, indexRegistersAre8Bit ? 8 : 16, rhs,
+		testInstructionWithOperand(Opcode::LDX, indexRegistersAre8Bit ? 8 : 16, val,
 			{
 				AddressingMode::Direct,
 				AddressingMode::Immediate,
@@ -1379,11 +1378,10 @@ TEST_CASE("LDX", "[cpu][instruction]") {
 			/*addExpectedBusAccesses=*/noopAddBusAccesses,
 			/*setup=*/[&](CPU& cpu) {
 				cpu.e = 0;
-				cpu.X.forceStoreFull(lhs);
 				cpu.setFlag(CPU::flags::x, indexRegistersAre8Bit);
 			},
 			/*test=*/[&](CPU& cpu) {
-				REQUIRE(cpu.X.load() == rhs);
+				REQUIRE(cpu.X.load() == val);
 				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
 				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
 			}
