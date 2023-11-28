@@ -33,6 +33,13 @@ jobs:
       with:
         submodules: recursive
 
+    - name: Install OpenGL VND library (on Linux)
+      if: ${{ matrix.os-short == 'linux' }}
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgl-dev
+
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
       id: strings
