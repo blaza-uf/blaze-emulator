@@ -1934,7 +1934,7 @@ TEST_CASE("NOP", "[cpu][instruction]") {
 	
 	DYNAMIC_SECTION((usingEmulatorMode ? 8 : 16) << "-bit") {
 		testInstruction(Opcode::NOP, AddressingMode::Implied,
-			/*addExpectedBusAccesses=*/noopTestStep,
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
 			/*setup=*/[&](CPU& cpu) {
 				cpu.e = usingEmulatorMode ? 1 : 0;
 			},
