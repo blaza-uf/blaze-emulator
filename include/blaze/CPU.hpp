@@ -607,7 +607,7 @@ namespace Blaze {
 		// this function is meant to be used by simple instructions that only need to load data from the
 		// memory operands (which is true for most instructions). if you need to both read from and write to
 		// a memory operand, you should use `decodeAddress` + `load16` instead.
-		Word loadOperand(AddressingMode addressingMode, bool use8BitImmediate) const;
+		Word loadOperand(AddressingMode addressingMode, bool use8BitOperand) const;
 
 		// decodes the current instruction based on the given opcode, returning the decoded instruction information
 		static Instruction decodeInstruction(Byte inst0, bool memoryAndAccumulatorAre8Bit);

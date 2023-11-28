@@ -402,12 +402,12 @@ Blaze::Address Blaze::CPU::decodeAddress(AddressingMode mode) const {
 	}
 };
 
-Blaze::Word Blaze::CPU::loadOperand(AddressingMode addressingMode, bool use8BitImmediate) const {
+Blaze::Word Blaze::CPU::loadOperand(AddressingMode addressingMode, bool use8BitOperand) const {
 	Address operand = decodeAddress(addressingMode);
 	if (addressingMode == AddressingMode::Immediate) {
-		operand = use8BitImmediate ? load8(executingPC + 1) : load16(executingPC + 1);
+		operand = use8BitOperand ? load8(executingPC + 1) : load16(executingPC + 1);
 	} else {
-		operand = memoryAndAccumulatorAre8Bit() ? load8(operand) : load16(operand);
+		operand = use8BitOperand ? load8(operand) : load16(operand);
 	}
 
 	// make sure the operand is actually 16 bits wide and not 24 bits
