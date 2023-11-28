@@ -2,73 +2,77 @@
 
 struct PPUMMIORegister {
 	enum IgnoreMe: Blaze::Address {
-		INIDISP     = 0x2100,
-		OBJSEL      = 0x2101,
-		OAMADDL     = 0x2102,
-		OAMADDH     = 0x2103,
-		OAMDATA     = 0x2104,
-		BGMODE      = 0x2105,
-		MOSAIC      = 0x2106,
-		BG1SC       = 0x2107,
-		BG2SC       = 0x2108,
-		BG3SC       = 0x2109,
-		BG4SC       = 0x210A,
-		BG12NBA     = 0x210B,
-		BG34NBA     = 0x210C,
-		BG1HOFS     = 0x210D,
-		M7HOFS      = 0x210D,
-		BG1VOFS     = 0x210E,
-		M7VOFS      = 0x210E,
-		BG2HOFS     = 0x210F,
-		BG2VOFS     = 0x2110,
-		BG3HOFS     = 0x2111,
-		BG3VOFS     = 0x2112,
-		BG4HOFS     = 0x2113,
-		BG4VOFS     = 0x2114,
-		VMAIN       = 0x2115,
-		VMADDL      = 0x2116,
-		VMADDH      = 0x2117,
-		VMDATAL     = 0x2118,
-		VMDATAH     = 0x2119,
-		M7SEL       = 0x211A,
-		M7A         = 0x211B,
-		M7B         = 0x211C,
-		M7C         = 0x211D,
-		M7D         = 0x211E,
-		M7X         = 0x211F,
-		M7Y         = 0x2120,
-		CGADD       = 0x2121,
-		CGDATA      = 0x2122,
-		W12SEL      = 0x2123,
-		W34SEL      = 0x2124,
-		WOBJSEL     = 0x2125,
-		WH0         = 0x2126,
-		WH1         = 0x2127,
-		WH2         = 0x2128,
-		WH3         = 0x2129,
-		WBGLOG      = 0x212A,
-		WOBJLOG     = 0x212B,
-		TM          = 0x212C,
-		TS          = 0x212D,
-		TMW         = 0x212E,
-		TSW         = 0x212F,
-		CGWSEL      = 0x2130,
-		CGADSUB     = 0x2131,
-		COLDATA     = 0x2132,
-		SETINI      = 0x2133,
-		MPYL        = 0x2134,
-		MPYM        = 0x2135,
-		MPYH        = 0x2136,
-		SLHV        = 0x2137,
-		OAMDATAREAD = 0x2138,
-		VMDATALREAD = 0x2139,
-		VMDATAHREAD = 0x213A,
-		CGDATAREAD  = 0x213B,
-		OPHCT       = 0x213C,
-		OPVCT       = 0x213D,
-		STAT77      = 0x213E,
-		STAT78      = 0x213F,
+		INIDISP     = 0x00,
+		OBJSEL      = 0x01,
+		OAMADDL     = 0x02,
+		OAMADDH     = 0x03,
+		OAMDATA     = 0x04,
+		BGMODE      = 0x05,
+		MOSAIC      = 0x06,
+		BG1SC       = 0x07,
+		BG2SC       = 0x08,
+		BG3SC       = 0x09,
+		BG4SC       = 0x0A,
+		BG12NBA     = 0x0B,
+		BG34NBA     = 0x0C,
+		BG1HOFS     = 0x0D,
+		M7HOFS      = 0x0D,
+		BG1VOFS     = 0x0E,
+		M7VOFS      = 0x0E,
+		BG2HOFS     = 0x0F,
+		BG2VOFS     = 0x10,
+		BG3HOFS     = 0x11,
+		BG3VOFS     = 0x12,
+		BG4HOFS     = 0x13,
+		BG4VOFS     = 0x14,
+		VMAIN       = 0x15,
+		VMADDL      = 0x16,
+		VMADDH      = 0x17,
+		VMDATAL     = 0x18,
+		VMDATAH     = 0x19,
+		M7SEL       = 0x1A,
+		M7A         = 0x1B,
+		M7B         = 0x1C,
+		M7C         = 0x1D,
+		M7D         = 0x1E,
+		M7X         = 0x1F,
+		M7Y         = 0x20,
+		CGADD       = 0x21,
+		CGDATA      = 0x22,
+		W12SEL      = 0x23,
+		W34SEL      = 0x24,
+		WOBJSEL     = 0x25,
+		WH0         = 0x26,
+		WH1         = 0x27,
+		WH2         = 0x28,
+		WH3         = 0x29,
+		WBGLOG      = 0x2A,
+		WOBJLOG     = 0x2B,
+		TM          = 0x2C,
+		TS          = 0x2D,
+		TMW         = 0x2E,
+		TSW         = 0x2F,
+		CGWSEL      = 0x30,
+		CGADSUB     = 0x31,
+		COLDATA     = 0x32,
+		SETINI      = 0x33,
+		MPYL        = 0x34,
+		MPYM        = 0x35,
+		MPYH        = 0x36,
+		SLHV        = 0x37,
+		OAMDATAREAD = 0x38,
+		VMDATALREAD = 0x39,
+		VMDATAHREAD = 0x3A,
+		CGDATAREAD  = 0x3B,
+		OPHCT       = 0x3C,
+		OPVCT       = 0x3D,
+		STAT77      = 0x3E,
+		STAT78      = 0x3F,
 	};
+};
+
+Blaze::Byte Blaze::PPU::registerSize(Address offset, Byte attemptedAccessSize) {
+	return 8;
 };
 
 Blaze::Address Blaze::PPU::read(Address offset, Byte bitSize) {
@@ -78,30 +82,6 @@ Blaze::Address Blaze::PPU::read(Address offset, Byte bitSize) {
 
 void Blaze::PPU::write(Address offset, Byte bitSize, Address value) {
 	// TODO
-};
-
-Blaze::Byte Blaze::PPU::read8(Address offset) {
-	return read(offset, 8);
-};
-
-Blaze::Word Blaze::PPU::read16(Address offset) {
-	return read(offset, 16);
-};
-
-Blaze::Address Blaze::PPU::read24(Address offset) {
-	return read(offset, 24);
-};
-
-void Blaze::PPU::write8(Address offset, Byte value) {
-	write(offset, 8, value);
-};
-
-void Blaze::PPU::write16(Address offset, Word value) {
-	write(offset, 16, value);
-};
-
-void Blaze::PPU::write24(Address offset, Address value) {
-	write(offset, 24, value);
 };
 
 void Blaze::PPU::reset(Bus* bus) {

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <sstream>
 #include <iomanip>
+#include <stdexcept>
 
 namespace Blaze {
 	// NOLINTBEGIN(readability-magic-numbers, readability-identifier-length, bugprone-easily-swappable-parameters)
@@ -84,7 +85,7 @@ namespace Blaze {
 
 	template<typename T>
 	static constexpr T hi16(T value, bool shift) {
-		size_t typeBits = sizeof(T) * 8;
+		size_t typeBits = (sizeof(value) > 2) ? 24 : (sizeof(T) * 8);
 		auto shiftBits = typeBits - 16;
 		auto unshifted = value & (static_cast<T>(0xffff) << shiftBits);
 		return shift ? (unshifted >> shiftBits) : unshifted;
@@ -106,4 +107,14 @@ namespace Blaze {
 		return stream.str();
 	};
 	// NOLINTEND(readability-magic-numbers, readability-identifier-length, bugprone-easily-swappable-parameters)
+
+	[[noreturn]] static inline void unreachable() {
+#if defined(__GNUC__) // GCC, Clang, ICC
+		__builtin_unreachable();
+#elif defined(_MSC_VER) // MSVC
+		__assume(false);
+#else
+		throw std::runtime_error("unreachable");
+#endif
+	};
 }; // namespace Blaze

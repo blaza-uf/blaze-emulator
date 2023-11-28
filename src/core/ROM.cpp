@@ -3,6 +3,7 @@
 
 #include <fstream>
 #include <cstring>
+#include <cassert>
 
 // 32 KiB
 static constexpr size_t MIN_ROM_SIZE = 0x8000;
@@ -94,7 +95,11 @@ void Blaze::ROM::load(const std::string& path) {
 	}
 };
 
-Blaze::Byte Blaze::ROM::read8(Address offset) {
+Blaze::Byte Blaze::ROM::registerSize(Address offset, Byte attemptedAccessSize) {
+	return 8;
+};
+
+Blaze::Address Blaze::ROM::read(Address offset, Byte bitSize) {
 	if (_memory.empty()) {
 		// no ROM loaded
 		return 0;
@@ -103,47 +108,13 @@ Blaze::Byte Blaze::ROM::read8(Address offset) {
 	if (offset >= _memory.size()) {
 		throw std::runtime_error("Invalid access to ROM (out-of-bounds)");
 	}
+
+	assert(bitSize == 8);
 
 	return _memory[offset];
 };
 
-Blaze::Word Blaze::ROM::read16(Address offset) {
-	if (_memory.empty()) {
-		// no ROM loaded
-		return 0;
-	}
-
-	if (offset >= _memory.size()) {
-		throw std::runtime_error("Invalid access to ROM (out-of-bounds)");
-	}
-
-	return concat16(_memory[offset + 1], _memory[offset]);
-};
-
-Blaze::Address Blaze::ROM::read24(Address offset) {
-	if (_memory.empty()) {
-		// no ROM loaded
-		return 0;
-	}
-
-	if (offset >= _memory.size()) {
-		throw std::runtime_error("Invalid access to ROM (out-of-bounds)");
-	}
-
-	return concat24(_memory[offset + 2], _memory[offset + 1], _memory[offset]);
-};
-
-void Blaze::ROM::write8(Address offset, Byte value) {
-	// no-op
-	// this is read-only memory!
-};
-
-void Blaze::ROM::write16(Address offset, Word value) {
-	// no-op
-	// this is read-only memory!
-};
-
-void Blaze::ROM::write24(Address offset, Address value) {
+void Blaze::ROM::write(Address offset, Byte bitSize, Address value) {
 	// no-op
 	// this is read-only memory!
 };

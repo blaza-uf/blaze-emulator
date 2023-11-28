@@ -27,52 +27,76 @@ namespace Blaze
 		reset();
     }
 
+		Address Bus::read(Address address, Byte bitSize) {
+			MMIODevice* device = nullptr;
+			Address offset = 0;
+			Address result = 0;
+			Address resultShift = 0;
+
+			while (bitSize > 0) {
+				findDeviceAndOffset(address, bitSize, false, 0, device, offset);
+
+				auto registerBitSize = device->registerSize(offset, bitSize);
+
+				auto tmp = device->read(offset, registerBitSize);
+				auto tmpPreserveMask = ~(UINT32_MAX << registerBitSize);
+				auto resultPreserveMask = ~(UINT32_MAX << resultShift);
+
+				result = (result & resultPreserveMask) | ((tmp & tmpPreserveMask) << resultShift);
+				bitSize -= registerBitSize;
+				resultShift += registerBitSize;
+				address += registerBitSize / 8;
+			}
+
+			return result;
+		};
+
+		void Bus::write(Address address, Byte bitSize, Address data) {
+			MMIODevice* device = nullptr;
+			Address offset = 0;
+
+			while (bitSize > 0) {
+				findDeviceAndOffset(address, bitSize, true, data, device, offset);
+
+				auto registerBitSize = device->registerSize(offset, bitSize);
+				auto dataMask = ~(UINT32_MAX << registerBitSize);
+
+				device->write(offset, bitSize, data & dataMask);
+
+				data >>= registerBitSize;
+				bitSize -= registerBitSize;
+				address += registerBitSize / 8;
+			}
+		};
+
     //=== Writing to the bus ===
     void Bus::write(Address addr, Byte data)
     {
-		MMIODevice* device = nullptr;
-		Address offset = 0;
-		findDeviceAndOffset(addr, 8, true, data, device, offset);
-		device->write8(offset, data);
+		write(addr, 8, data);
     }
     void Bus::write(Address addr, Word data)
     {
-		MMIODevice* device = nullptr;
-		Address offset = 0;
-		findDeviceAndOffset(addr, 16, true, data, device, offset);
-		device->write16(offset, data);
+		write(addr, 16, data);
     }
     void Bus::write(Address addr, Address data)
     {
-		MMIODevice* device = nullptr;
-		Address offset = 0;
-		findDeviceAndOffset(addr, 24, true, data, device, offset);
-		device->write24(offset, data);
+		write(addr, 24, data);
     }
 
     //=== Reading from the bus ===
     Byte Bus::read8(Address addr)
     {
-		MMIODevice* device = nullptr;
-		Address offset = 0;
-		findDeviceAndOffset(addr, 8, false, 0, device, offset);
-		return device->read8(offset);
+		return read(addr, 8);
     }
 
     Word Bus::read16(Address addr)
     {
-		MMIODevice* device = nullptr;
-		Address offset = 0;
-		findDeviceAndOffset(addr, 16, false, 0, device, offset);
-		return device->read16(offset);
+		return read(addr, 16);
     }
 
     Address Bus::read24(Address addr)
     {
-		MMIODevice* device = nullptr;
-		Address offset = 0;
-		findDeviceAndOffset(addr, 24, false, 0, device, offset);
-		return device->read24(offset);
+		return read(addr, 24);
     }
 
 	void Bus::reset() {
@@ -86,19 +110,11 @@ namespace Blaze
 	};
 
 	struct DummyDevice: public MMIODevice {
-		Byte read8(Address offset) override {
-			return 0;
-		};
-		Word read16(Address offset) override {
-			return 0;
-		};
-		Address read24(Address offset) override {
+		Address read(Address offset, Byte bitSize) override {
 			return 0;
 		};
 
-		void write8(Address offset, Byte value) override {};
-		void write16(Address offset, Word value) override {};
-		void write24(Address offset, Address value) override {};
+		void write(Address offset, Byte bitSize, Address value) override {};
 
 		void reset(Bus* bus) override {};
 	};
@@ -125,6 +141,7 @@ void Blaze::Bus::findDeviceAndOffset(Address fullAddress, Byte bitSize, bool for
 		// the PPU has memory-mapped registers from $2100 through $213F
 		outDevice = ppu;
 		outOffset = addr - 0x2100;
+		return;
 	}
 
 	// banks $7E and $7F map the full 128 KiB of RAM

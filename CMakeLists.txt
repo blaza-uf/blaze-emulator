@@ -35,6 +35,7 @@ add_library(blaze-core OBJECT
 	src/core/Bus.cpp
 	src/core/Register.cpp
 	src/core/ROM.cpp
+	src/core/MMIO.cpp
 )
 
 target_include_directories(blaze-core PUBLIC

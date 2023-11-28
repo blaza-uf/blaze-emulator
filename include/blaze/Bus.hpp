@@ -48,6 +48,8 @@ namespace Blaze
 		void reset();
 
 	private:
+		Address read(Address address, Byte bitSize);
+		void write(Address address, Byte bitSize, Address data);
 		void findDeviceAndOffset(Address address, Byte bitSize, bool forWrite, Address valueWhenWriting, MMIODevice*& outDevice, Address& outOffset);
 	};
 }
