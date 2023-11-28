@@ -14,6 +14,7 @@
 #include <thread>
 #include <mutex>
 #include <blaze/PPU.hpp>
+#include <blaze/APU.hpp>
 
 #include <GL/gl.h>
 
@@ -540,8 +541,10 @@ int main(int argc, char** argv) {
 	std::string debugConsoleOutput;
 	std::mutex debugConsoleMutex;
 	Blaze::PPU ppu;
+	Blaze::APU apu;
 
 	bus.ppu = &ppu;
+	bus.apu = &apu;
 
 #ifdef _WIN32
 	HWND win32MainWindow = nullptr;

@@ -4,6 +4,7 @@
 #include <blaze/MemRam.hpp>
 #include <blaze/ROM.hpp>
 #include <blaze/MMIO.hpp>
+#include <blaze/DMA.hpp>
 
 namespace Blaze
 {
@@ -24,12 +25,14 @@ namespace Blaze
 		CPU cpu;
 		MemRam ram;
 		ROM rom;
+		DMA dma;
 
 		//=== Devices connected to the bus but not owned by the bus ===
 		//
 		// these devices are typically devices that require GUI integration (e.g. graphics, controllers, audio, etc.).
 		// we simply keep pointers to these devices (so we can access them) but we do not own them.
 		MMIODevice* ppu = nullptr;
+		MMIODevice* apu = nullptr;
 
 		//=== Bus access hooks ===
 		std::function<void(Address address, Byte bitSize, bool forWrite, Address valueWhenWriting)> invalidAccess = nullptr;

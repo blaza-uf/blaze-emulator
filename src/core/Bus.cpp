@@ -103,6 +103,7 @@ namespace Blaze
 		ram.reset(this);
 		// *don't* reset the ROM
 		//rom.reset(this);
+		dma.reset(this);
 		if (ppu != nullptr) {
 			ppu->reset(this);
 		}
@@ -141,6 +142,34 @@ void Blaze::Bus::findDeviceAndOffset(Address fullAddress, Byte bitSize, bool for
 		// the PPU has memory-mapped registers from $2100 through $213F
 		outDevice = ppu;
 		outOffset = addr - 0x2100;
+		return;
+	}
+
+	if (bank == 0x00 && addr == 0x420b) {
+		// DMA enable register
+		outDevice = &dma;
+		outOffset = DMA_SPECIAL_OFFSET_MDMAEN;
+		return;
+	}
+
+	if (bank == 0x00 && addr == 0x420c) {
+		// HDMA enable register
+		outDevice = &dma;
+		outOffset = DMA_SPECIAL_OFFSET_HDMAEN;
+		return;
+	}
+
+	if (bank == 0x00 && addr >= 0x4300 && addr <= 0x437f) {
+		// DMA control region
+		outDevice = &dma;
+		outOffset = addr - 0x4300;
+		return;
+	}
+
+	if (bank == 0x00 && addr >= 0x2140 && addr <= 0x217f) {
+		// APU IO registers (only 4 of them, but mirrored across this range)
+		outDevice = apu;
+		outOffset = addr % 4;
 		return;
 	}
 

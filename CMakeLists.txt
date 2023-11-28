@@ -36,6 +36,7 @@ add_library(blaze-core OBJECT
 	src/core/Register.cpp
 	src/core/ROM.cpp
 	src/core/MMIO.cpp
+	src/core/DMA.cpp
 )
 
 target_include_directories(blaze-core PUBLIC
@@ -47,6 +48,7 @@ find_package(OpenGL REQUIRED COMPONENTS OpenGL)
 add_executable(blaze WIN32
 	src/gui/blaze.cpp
 	src/gui/PPU.cpp
+	src/gui/APU.cpp
 )
 
 target_link_libraries(blaze PRIVATE blaze-core)
