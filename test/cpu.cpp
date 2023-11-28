@@ -576,6 +576,7 @@ TEST_CASE("ADC", "[cpu][instruction]") {
 				AddressingMode::AbsoluteIndexedY,
 				AddressingMode::AbsoluteIndexedX,
 				AddressingMode::StackRelative,
+				AddressingMode::DirectIndirect,
 				AddressingMode::DirectIndirectLong,
 				AddressingMode::AbsoluteLong,
 				AddressingMode::StackRelativeIndirectIndexed,
@@ -1150,3 +1151,763 @@ TEST_CASE("TCD", "[cpu][instruction]") {
 	}
 }
 
+TEST_CASE("AND", "[cpu][instruction]") {
+	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
+	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto result = lhs & rhs;
+	bool resultIsZero = result == 0;
+	bool resultIsNegative = msb(result, memoryAndAccumulatorAre8Bit);
+
+	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit; ") {
+		testInstructionWithOperand(Opcode::AND, memoryAndAccumulatorAre8Bit ? 8 : 16, rhs,
+			{
+				AddressingMode::DirectIndexedIndirect,
+				AddressingMode::Direct,
+				AddressingMode::Immediate,
+				AddressingMode::Absolute,
+				AddressingMode::DirectIndirectIndexed,
+				AddressingMode::DirectIndexedX,
+				AddressingMode::AbsoluteIndexedY,
+				AddressingMode::AbsoluteIndexedX,
+				AddressingMode::StackRelative,
+				AddressingMode::DirectIndirect,
+				AddressingMode::DirectIndirectLong,
+				AddressingMode::AbsoluteLong,
+				AddressingMode::StackRelativeIndirectIndexed,
+				AddressingMode::DirectIndirectLongIndexed,
+				AddressingMode::AbsoluteLongIndexedX,
+			},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.A.forceStoreFull(lhs);
+				cpu.setFlag(CPU::flags::m, memoryAndAccumulatorAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.A.load() == result);
+				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
+				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
+			}
+		);
+	}
+}
+
+TEST_CASE("ORA", "[cpu][instruction]") {
+	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
+	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto result = lhs | rhs;
+	bool resultIsZero = result == 0;
+	bool resultIsNegative = msb(result, memoryAndAccumulatorAre8Bit);
+
+	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit; ") {
+		testInstructionWithOperand(Opcode::ORA, memoryAndAccumulatorAre8Bit ? 8 : 16, rhs,
+			{
+				AddressingMode::DirectIndexedIndirect,
+				AddressingMode::Direct,
+				AddressingMode::Immediate,
+				AddressingMode::Absolute,
+				AddressingMode::DirectIndirectIndexed,
+				AddressingMode::DirectIndexedX,
+				AddressingMode::AbsoluteIndexedY,
+				AddressingMode::AbsoluteIndexedX,
+				AddressingMode::StackRelative,
+				AddressingMode::DirectIndirect,
+				AddressingMode::DirectIndirectLong,
+				AddressingMode::AbsoluteLong,
+				AddressingMode::StackRelativeIndirectIndexed,
+				AddressingMode::DirectIndirectLongIndexed,
+				AddressingMode::AbsoluteLongIndexedX,
+			},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.A.forceStoreFull(lhs);
+				cpu.setFlag(CPU::flags::m, memoryAndAccumulatorAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.A.load() == result);
+				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
+				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
+			}
+		);
+	}
+}
+
+TEST_CASE("EOR", "[cpu][instruction]") {
+	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
+	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto result = lhs ^ rhs;
+	bool resultIsZero = result == 0;
+	bool resultIsNegative = msb(result, memoryAndAccumulatorAre8Bit);
+
+	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit; ") {
+		testInstructionWithOperand(Opcode::EOR, memoryAndAccumulatorAre8Bit ? 8 : 16, rhs,
+			{
+				AddressingMode::DirectIndexedIndirect,
+				AddressingMode::Direct,
+				AddressingMode::Immediate,
+				AddressingMode::Absolute,
+				AddressingMode::DirectIndirectIndexed,
+				AddressingMode::DirectIndexedX,
+				AddressingMode::AbsoluteIndexedY,
+				AddressingMode::AbsoluteIndexedX,
+				AddressingMode::StackRelative,
+				AddressingMode::DirectIndirect,
+				AddressingMode::DirectIndirectLong,
+				AddressingMode::AbsoluteLong,
+				AddressingMode::StackRelativeIndirectIndexed,
+				AddressingMode::DirectIndirectLongIndexed,
+				AddressingMode::AbsoluteLongIndexedX,
+			},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.A.forceStoreFull(lhs);
+				cpu.setFlag(CPU::flags::m, memoryAndAccumulatorAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.A.load() == result);
+				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
+				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
+			}
+		);
+	}
+}
+
+TEST_CASE("CMP", "[cpu][instruction]") {
+	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
+	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto result = lhs - rhs;
+	bool resultIsZero = lhs == rhs;
+	bool resultIsNegative = msb(result, memoryAndAccumulatorAre8Bit);
+	bool resultHasCarry = lhs >= rhs;
+	
+	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit; ") {
+		testInstructionWithOperand(Opcode::CMP, memoryAndAccumulatorAre8Bit ? 8 : 16, rhs,
+			{
+				AddressingMode::DirectIndexedIndirect,
+				AddressingMode::Direct,
+				AddressingMode::Immediate,
+				AddressingMode::Absolute,
+				AddressingMode::DirectIndirectIndexed,
+				AddressingMode::DirectIndexedX,
+				AddressingMode::AbsoluteIndexedY,
+				AddressingMode::AbsoluteIndexedX,
+				AddressingMode::StackRelative,
+				AddressingMode::DirectIndirect,
+				AddressingMode::DirectIndirectLong,
+				AddressingMode::AbsoluteLong,
+				AddressingMode::StackRelativeIndirectIndexed,
+				AddressingMode::DirectIndirectLongIndexed,
+				AddressingMode::AbsoluteLongIndexedX,
+			},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.A.forceStoreFull(lhs);
+				cpu.setFlag(CPU::flags::m, memoryAndAccumulatorAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
+				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
+				REQUIRE(cpu.getFlag(CPU::flags::c) == resultHasCarry);
+			}
+		);
+	}
+}
+
+TEST_CASE("LDA", "[cpu][instruction]") {
+	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
+	auto val = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	bool resultIsZero = val == 0;
+	bool resultIsNegative = msb(val, memoryAndAccumulatorAre8Bit);
+
+	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit; ") {
+		testInstructionWithOperand(Opcode::LDA, memoryAndAccumulatorAre8Bit ? 8 : 16, val,
+			{
+				AddressingMode::DirectIndexedIndirect,
+				AddressingMode::Direct,
+				AddressingMode::Immediate,
+				AddressingMode::Absolute,
+				AddressingMode::DirectIndirectIndexed,
+				AddressingMode::DirectIndexedX,
+				AddressingMode::AbsoluteIndexedY,
+				AddressingMode::AbsoluteIndexedX,
+				AddressingMode::StackRelative,
+				AddressingMode::DirectIndirect,
+				AddressingMode::DirectIndirectLong,
+				AddressingMode::AbsoluteLong,
+				AddressingMode::StackRelativeIndirectIndexed,
+				AddressingMode::DirectIndirectLongIndexed,
+				AddressingMode::AbsoluteLongIndexedX,
+			},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.setFlag(CPU::flags::m, memoryAndAccumulatorAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.A.load() == val);
+				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
+				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
+			}
+		);
+	}
+}
+
+TEST_CASE("LDX", "[cpu][instruction]") {
+	auto indexRegistersAre8Bit = GENERATE(false, true);
+	auto val = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1))));
+	bool resultIsZero = val == 0;
+	bool resultIsNegative = msb(val, indexRegistersAre8Bit);
+
+	DYNAMIC_SECTION((indexRegistersAre8Bit ? 8 : 16) << "-bit; ") {
+		testInstructionWithOperand(Opcode::LDX, indexRegistersAre8Bit ? 8 : 16, val,
+			{
+				AddressingMode::Direct,
+				AddressingMode::Immediate,
+				AddressingMode::Absolute,
+				AddressingMode::DirectIndexedX,
+				AddressingMode::AbsoluteIndexedX,
+			},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.setFlag(CPU::flags::x, indexRegistersAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.X.load() == val);
+				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
+				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
+			}
+		);
+	}
+}
+
+TEST_CASE("LDY", "[cpu][instruction]") {
+	auto indexRegistersAre8Bit = GENERATE(false, true);
+	auto val = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1))));
+	bool resultIsZero = val == 0;
+	bool resultIsNegative = msb(val, indexRegistersAre8Bit);
+
+	DYNAMIC_SECTION((indexRegistersAre8Bit ? 8 : 16) << "-bit; ") {
+		testInstructionWithOperand(Opcode::LDY, indexRegistersAre8Bit ? 8 : 16, val,
+			{
+				AddressingMode::Direct,
+				AddressingMode::Immediate,
+				AddressingMode::Absolute,
+				AddressingMode::DirectIndexedX,
+				AddressingMode::AbsoluteIndexedX,
+			},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.setFlag(CPU::flags::x, indexRegistersAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.Y.load() == val);
+				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
+				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
+			}
+		);
+	}
+}
+
+TEST_CASE("CPX", "[cpu][instruction]") {
+	auto indexRegistersAre8Bit = GENERATE(false, true);
+	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1))));
+	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1))));
+	auto result = lhs - rhs;
+	bool resultIsZero = lhs == rhs;
+	bool resultIsNegative = msb(result, indexRegistersAre8Bit);
+	bool resultHasCarry = lhs >= rhs;
+
+	DYNAMIC_SECTION((indexRegistersAre8Bit ? 8 : 16) << "-bit; ") {
+		testInstructionWithOperand(Opcode::CPX, indexRegistersAre8Bit ? 8 : 16, rhs,
+			{
+				AddressingMode::Direct,
+				AddressingMode::Immediate,
+				AddressingMode::Absolute,
+			},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.X.forceStoreFull(lhs);
+				cpu.setFlag(CPU::flags::x, indexRegistersAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
+				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
+				REQUIRE(cpu.getFlag(CPU::flags::c) == resultHasCarry);
+			}
+		);
+	}
+}
+
+TEST_CASE("CPY", "[cpu][instruction]") {
+	auto indexRegistersAre8Bit = GENERATE(false, true);
+	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1))));
+	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1))));
+	auto result = lhs - rhs;
+	bool resultIsZero = lhs == rhs;
+	bool resultIsNegative = msb(result, indexRegistersAre8Bit);
+	bool resultHasCarry = lhs >= rhs;
+
+	DYNAMIC_SECTION((indexRegistersAre8Bit ? 8 : 16) << "-bit; ") {
+		testInstructionWithOperand(Opcode::CPY, indexRegistersAre8Bit ? 8 : 16, rhs,
+			{
+				AddressingMode::Direct,
+				AddressingMode::Immediate,
+				AddressingMode::Absolute,
+			},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.Y.forceStoreFull(lhs);
+				cpu.setFlag(CPU::flags::x, indexRegistersAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
+				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
+				REQUIRE(cpu.getFlag(CPU::flags::c) == resultHasCarry);
+			}
+		);
+	}
+}
+
+TEST_CASE("BIT", "[cpu][instruction]") {
+	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
+	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto result = lhs & rhs;
+	bool resultIsZero = result == 0;
+	bool resultIsNegative = msb(rhs, memoryAndAccumulatorAre8Bit);
+	bool resultHasOverflow = memoryAndAccumulatorAre8Bit ? ((rhs & (1u << 6)) != 0) : ((rhs & (1u << 14)) != 0);
+	
+	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit; ") {
+		testInstructionWithOperand(Opcode::BIT, memoryAndAccumulatorAre8Bit ? 8 : 16, rhs,
+			{
+				AddressingMode::Direct,
+				AddressingMode::Immediate,
+				AddressingMode::Absolute,
+				AddressingMode::DirectIndexedX,
+				AddressingMode::AbsoluteIndexedX,
+			},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.A.forceStoreFull(lhs);
+				cpu.setFlag(CPU::flags::m, memoryAndAccumulatorAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
+				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
+				REQUIRE(cpu.getFlag(CPU::flags::v) == resultHasOverflow);
+			}
+		);
+	}
+}
+
+
+TEST_CASE("INC", "[cpu][instruction][!mayfail]") {
+	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
+	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto result = lhs + 1;
+	bool resultIsZero = result == 0;
+	bool resultIsNegative = msb(result, memoryAndAccumulatorAre8Bit);
+	
+	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit; ") {
+		testInstructionWithOperand(Opcode::INC, memoryAndAccumulatorAre8Bit ? 8 : 16, rhs,
+			{
+				AddressingMode::Direct,
+				AddressingMode::Accumulator,
+				AddressingMode::Absolute,
+				AddressingMode::DirectIndexedX,
+				AddressingMode::AbsoluteIndexedX,
+			},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.A.forceStoreFull(lhs);
+				cpu.setFlag(CPU::flags::m, memoryAndAccumulatorAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.A.load() == result);
+				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
+				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
+			}
+		);
+	}
+}
+
+TEST_CASE("DEC", "[cpu][instruction][!mayfail]") {
+	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
+	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto result = lhs - 1;
+	bool resultIsZero = result == 0;
+	bool resultIsNegative = msb(result, memoryAndAccumulatorAre8Bit);
+	
+	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit; ") {
+		testInstructionWithOperand(Opcode::DEC, memoryAndAccumulatorAre8Bit ? 8 : 16, rhs,
+			{
+				AddressingMode::Direct,
+				AddressingMode::Accumulator,
+				AddressingMode::Absolute,
+				AddressingMode::DirectIndexedX,
+				AddressingMode::AbsoluteIndexedX,
+			},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.A.forceStoreFull(lhs);
+				cpu.setFlag(CPU::flags::m, memoryAndAccumulatorAre8Bit);
+
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.A.load() == result);
+				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
+				REQUIRE(cpu.getFlag(CPU::flags::n) == resultIsNegative);
+			}
+		);
+	}
+}
+
+TEST_CASE("INX", "[cpu][instruction]") {
+	auto indexRegistersAre8Bit = GENERATE(false, true);
+	auto val = GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1)));
+	auto result = val + 1;	
+	
+	DYNAMIC_SECTION((indexRegistersAre8Bit ? 8 : 16) << "-bit") {
+		testInstruction(Opcode::INX, AddressingMode::Implied,
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.X.forceStoreFull(val);
+				cpu.setFlag(CPU::flags::x, indexRegistersAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.X.load() == result);
+			}
+		);
+	}
+}
+
+TEST_CASE("INY", "[cpu][instruction]") {
+	auto indexRegistersAre8Bit = GENERATE(false, true);
+	auto val = GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1)));
+	auto result = val + 1;	
+	
+	DYNAMIC_SECTION((indexRegistersAre8Bit ? 8 : 16) << "-bit") {
+		testInstruction(Opcode::INY, AddressingMode::Implied,
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.Y.forceStoreFull(val);
+				cpu.setFlag(CPU::flags::x, indexRegistersAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.Y.load() == result);
+			}
+		);
+	}
+}
+
+TEST_CASE("DEX", "[cpu][instruction]") {
+	auto indexRegistersAre8Bit = GENERATE(false, true);
+	auto val = GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1)));
+	auto result = val - 1;	
+	
+	DYNAMIC_SECTION((indexRegistersAre8Bit ? 8 : 16) << "-bit") {
+		testInstruction(Opcode::DEX, AddressingMode::Implied,
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.X.forceStoreFull(val);
+				cpu.setFlag(CPU::flags::x, indexRegistersAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.X.load() == result);
+			}
+		);
+	}
+}
+
+TEST_CASE("DEY", "[cpu][instruction]") {
+	auto indexRegistersAre8Bit = GENERATE(false, true);
+	auto val = GENERATE_COPY(take(1, random<Address>(0, (indexRegistersAre8Bit ? 0xff : 0xffff) + 1)));
+	auto result = val - 1;	
+	
+	DYNAMIC_SECTION((indexRegistersAre8Bit ? 8 : 16) << "-bit") {
+		testInstruction(Opcode::DEY, AddressingMode::Implied,
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.Y.forceStoreFull(val);
+				cpu.setFlag(CPU::flags::x, indexRegistersAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.Y.load() == result);
+			}
+		);
+	}
+}
+
+TEST_CASE("CLV", "[cpu][instruction]") {
+	auto usingEmulatorMode = GENERATE(false, true);
+	
+	DYNAMIC_SECTION((usingEmulatorMode ? 8 : 16) << "-bit") {
+		testInstruction(Opcode::CLV, AddressingMode::Implied,
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = usingEmulatorMode ? 1 : 0;
+				cpu.setFlag(CPU::flags::v, false);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.getFlag(CPU::flags::v) == false);
+			}
+		);
+	}
+}
+
+TEST_CASE("CLC", "[cpu][instruction]") {
+	auto usingEmulatorMode = GENERATE(false, true);
+	
+	DYNAMIC_SECTION((usingEmulatorMode ? 8 : 16) << "-bit") {
+		testInstruction(Opcode::CLC, AddressingMode::Implied,
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = usingEmulatorMode ? 1 : 0;
+				cpu.setFlag(CPU::flags::c, false);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.getFlag(CPU::flags::c) == false);
+			}
+		);
+	}
+}
+
+TEST_CASE("CLI", "[cpu][instruction]") {
+	auto usingEmulatorMode = GENERATE(false, true);
+	
+	DYNAMIC_SECTION((usingEmulatorMode ? 8 : 16) << "-bit") {
+		testInstruction(Opcode::CLI, AddressingMode::Implied,
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = usingEmulatorMode ? 1 : 0;
+				cpu.setFlag(CPU::flags::i, false);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.getFlag(CPU::flags::i) == false);
+			}
+		);
+	}
+}
+
+TEST_CASE("CLD", "[cpu][instruction]") {
+	auto usingEmulatorMode = GENERATE(false, true);
+	
+	DYNAMIC_SECTION((usingEmulatorMode ? 8 : 16) << "-bit") {
+		testInstruction(Opcode::CLD, AddressingMode::Implied,
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = usingEmulatorMode ? 1 : 0;
+				cpu.setFlag(CPU::flags::d, false);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.getFlag(CPU::flags::d) == false);
+			}
+		);
+	}
+}
+
+TEST_CASE("SEC", "[cpu][instruction]") {
+	auto usingEmulatorMode = GENERATE(false, true);
+	
+	DYNAMIC_SECTION((usingEmulatorMode ? 8 : 16) << "-bit") {
+		testInstruction(Opcode::SEC, AddressingMode::Implied,
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = usingEmulatorMode ? 1 : 0;
+				cpu.setFlag(CPU::flags::c, true);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.getFlag(CPU::flags::c) == true);
+			}
+		);
+	}
+}
+
+TEST_CASE("SED", "[cpu][instruction]") {
+	auto usingEmulatorMode = GENERATE(false, true);
+	
+	DYNAMIC_SECTION((usingEmulatorMode ? 8 : 16) << "-bit") {
+		testInstruction(Opcode::SED, AddressingMode::Implied,
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = usingEmulatorMode ? 1 : 0;
+				cpu.setFlag(CPU::flags::d, true);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.getFlag(CPU::flags::d) == true);
+			}
+		);
+	}
+}
+
+TEST_CASE("SEI", "[cpu][instruction]") {
+	auto usingEmulatorMode = GENERATE(false, true);
+	
+	DYNAMIC_SECTION((usingEmulatorMode ? 8 : 16) << "-bit") {
+		testInstruction(Opcode::SEI, AddressingMode::Implied,
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = usingEmulatorMode ? 1 : 0;
+				cpu.setFlag(CPU::flags::i, true);
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.getFlag(CPU::flags::i) == true);
+			}
+		);
+	}
+}
+
+TEST_CASE("REP", "[cpu][instruction]") {
+	auto usingEmulatorMode = GENERATE(false, true);
+	auto valP = GENERATE_COPY(take(1, random<Address>(0, 0xff + 1)));
+	auto val = GENERATE_COPY(take(1, random<Address>(0, 0xff + 1)));
+	auto result = valP & ~val;
+	
+	DYNAMIC_SECTION((usingEmulatorMode ? 8 : 16) << "-bit") {
+		testInstructionWithOperand(Opcode::REP, 8, val,
+		{
+			AddressingMode::Immediate,
+		},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = usingEmulatorMode ? 1 : 0;
+				cpu.P = valP;
+				if (usingEmulatorMode) {
+					cpu.setFlag(CPU::flags::m, true);
+					cpu.setFlag(CPU::flags::x, true);
+				}
+			},
+			/*test=*/[&](CPU& cpu) {
+				auto expectedVal = result | (usingEmulatorMode ? (CPU::flags::m | CPU::flags::x) : 0);
+				REQUIRE(cpu.P == expectedVal);
+			}
+		);
+	}
+}
+
+TEST_CASE("SEP", "[cpu][instruction]") {
+	auto usingEmulatorMode = GENERATE(false, true);
+	auto valP = GENERATE_COPY(take(1, random<Address>(0, 0xff + 1)));
+	auto val = GENERATE_COPY(take(1, random<Address>(0, 0xff + 1)));
+	auto result = valP | val;
+	
+	DYNAMIC_SECTION((usingEmulatorMode ? 8 : 16) << "-bit") {
+		testInstructionWithOperand(Opcode::SEP, 8, val,
+		{
+			AddressingMode::Immediate,
+		},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = usingEmulatorMode ? 1 : 0;
+				cpu.P = valP;
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.P == result);
+			}
+		);
+	}
+}
+
+TEST_CASE("TRB", "[cpu][instruction][!mayfail]") {
+	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
+	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto result = lhs & rhs;
+	bool resultIsZero = result == 0;
+	auto finalResult = rhs & ~lhs;
+	
+	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit; ") {
+		testInstructionWithOperand(Opcode::TRB, memoryAndAccumulatorAre8Bit ? 8 : 16, rhs,
+			{
+				AddressingMode::Direct,
+				AddressingMode::Absolute,
+			},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.A.forceStoreFull(lhs);
+				cpu.setFlag(CPU::flags::m, memoryAndAccumulatorAre8Bit);
+				
+			},
+			/*test=*/[&](CPU& cpu) {
+				auto expectedVal = rhs & ~cpu.A.load();
+				REQUIRE(expectedVal == finalResult);
+				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
+			}
+		);
+	}
+}
+
+TEST_CASE("TSB", "[cpu][instruction][!mayfail]") {
+	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
+	auto lhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	auto result = lhs & rhs;
+	bool resultIsZero = result == 0;
+	auto finalResult = rhs | lhs;
+	
+	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit; ") {
+		testInstructionWithOperand(Opcode::TSB, memoryAndAccumulatorAre8Bit ? 8 : 16, rhs,
+			{
+				AddressingMode::Direct,
+				AddressingMode::Absolute,
+			},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.A.forceStoreFull(lhs);
+				cpu.setFlag(CPU::flags::m, memoryAndAccumulatorAre8Bit);
+				
+			},
+			/*test=*/[&](CPU& cpu) {
+				auto expectedVal = rhs | cpu.A.load();
+				REQUIRE(expectedVal == finalResult);
+				REQUIRE(cpu.getFlag(CPU::flags::z) == resultIsZero);
+			}
+		);
+	}
+}
+
+TEST_CASE("STZ", "[cpu][instruction][!mayfail]") {
+	auto memoryAndAccumulatorAre8Bit = GENERATE(false, true);
+	auto rhs = static_cast<Word>(GENERATE_COPY(take(1, random<Address>(0, (memoryAndAccumulatorAre8Bit ? 0xff : 0xffff) + 1))));
+	
+	DYNAMIC_SECTION((memoryAndAccumulatorAre8Bit ? 8 : 16) << "-bit; ") {
+		testInstructionWithOperand(Opcode::STZ, memoryAndAccumulatorAre8Bit ? 8 : 16, rhs,
+			{
+				AddressingMode::Direct,
+				AddressingMode::Absolute,
+				AddressingMode::DirectIndexedX,
+				AddressingMode::AbsoluteIndexedX,
+			},
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = 0;
+				cpu.setFlag(CPU::flags::m, memoryAndAccumulatorAre8Bit);
+			},
+			/*test=*/[&](CPU& cpu) {
+			REQUIRE(rhs == 0);	
+			}
+		);
+	}
+}
