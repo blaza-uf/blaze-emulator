@@ -31,6 +31,9 @@ namespace Blaze
 		// we simply keep pointers to these devices (so we can access them) but we do not own them.
 		MMIODevice* ppu = nullptr;
 
+		//=== Bus access hooks ===
+		std::function<void(Address address, Byte bitSize, bool forWrite, Address valueWhenWriting)> invalidAccess = nullptr;
+
 		//=== Constructor & Destructor ===
 		Bus();
 
@@ -45,6 +48,6 @@ namespace Blaze
 		void reset();
 
 	private:
-		void findDeviceAndOffset(Address address, MMIODevice*& outDevice, Address& outOffset);
+		void findDeviceAndOffset(Address address, Byte bitSize, bool forWrite, Address valueWhenWriting, MMIODevice*& outDevice, Address& outOffset);
 	};
 }

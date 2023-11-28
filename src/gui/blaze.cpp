@@ -435,6 +435,9 @@ static void updateConsole(const std::string& contents) {
 #else
 	Edit_SetText(win32DebugConsoleTextWindow, contents.c_str());
 #endif
+
+	auto lineCount = Edit_GetLineCount(win32DebugConsoleTextWindow);
+	SendMessage(win32DebugConsoleTextWindow, EM_LINESCROLL, 0, lineCount);
 };
 
 static LRESULT CALLBACK debugConsoleWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -685,6 +688,17 @@ int main(int argc, char** argv) {
 		updateConsole(debugConsoleOutput);
 	};
 
+	bus.invalidAccess = [&](Blaze::Address address, Blaze::Byte bitSize, bool forWrite, Blaze::Address valueWhenWriting) {
+		debugConsoleOutput += "Invalid " + std::to_string(bitSize) + "-bit bus access to " + Blaze::valueToHexString(address, 6, "$") + " for ";
+		if (forWrite) {
+			debugConsoleOutput += "writing " + Blaze::valueToHexString(valueWhenWriting, 6, "$");
+		} else {
+			debugConsoleOutput += "reading";
+		}
+		debugConsoleOutput += '\n';
+		updateConsole(debugConsoleOutput);
+	};
+
 	if (argc > 1) {
 		std::string path = argv[1];
 		std::stringstream output;
@@ -707,8 +721,6 @@ int main(int argc, char** argv) {
 				bus.reset();
 
 				romSuccessfullyLoaded = true;
-
-				updateDisassembly();
 			}
 		} catch (const std::runtime_error& e) {
 			output << "Failed to load ROM:\n" << e.what();
@@ -723,6 +735,8 @@ int main(int argc, char** argv) {
 		}
 
 		romLoaded = romSuccessfullyLoaded;
+
+		updateDisassembly();
 	}
 
 	// set up the GL context
@@ -838,8 +852,6 @@ int main(int argc, char** argv) {
 										bus.reset();
 
 										romSuccessfullyLoaded = true;
-
-										updateDisassembly();
 									}
 								} catch (const std::runtime_error& e) {
 									output << "Failed to load ROM:\n" << e.what();
@@ -857,6 +869,8 @@ int main(int argc, char** argv) {
 							}
 
 							romLoaded = romSuccessfullyLoaded;
+
+							updateDisassembly();
 						} break;
 
 						case Blaze::MenuID::FileClose: {

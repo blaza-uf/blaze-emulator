@@ -32,21 +32,21 @@ namespace Blaze
     {
 		MMIODevice* device = nullptr;
 		Address offset = 0;
-		findDeviceAndOffset(addr, device, offset);
+		findDeviceAndOffset(addr, 8, true, data, device, offset);
 		device->write8(offset, data);
     }
     void Bus::write(Address addr, Word data)
     {
 		MMIODevice* device = nullptr;
 		Address offset = 0;
-		findDeviceAndOffset(addr, device, offset);
+		findDeviceAndOffset(addr, 16, true, data, device, offset);
 		device->write16(offset, data);
     }
     void Bus::write(Address addr, Address data)
     {
 		MMIODevice* device = nullptr;
 		Address offset = 0;
-		findDeviceAndOffset(addr, device, offset);
+		findDeviceAndOffset(addr, 24, true, data, device, offset);
 		device->write24(offset, data);
     }
 
@@ -55,7 +55,7 @@ namespace Blaze
     {
 		MMIODevice* device = nullptr;
 		Address offset = 0;
-		findDeviceAndOffset(addr, device, offset);
+		findDeviceAndOffset(addr, 8, false, 0, device, offset);
 		return device->read8(offset);
     }
 
@@ -63,7 +63,7 @@ namespace Blaze
     {
 		MMIODevice* device = nullptr;
 		Address offset = 0;
-		findDeviceAndOffset(addr, device, offset);
+		findDeviceAndOffset(addr, 16, false, 0, device, offset);
 		return device->read16(offset);
     }
 
@@ -71,7 +71,7 @@ namespace Blaze
     {
 		MMIODevice* device = nullptr;
 		Address offset = 0;
-		findDeviceAndOffset(addr, device, offset);
+		findDeviceAndOffset(addr, 24, false, 0, device, offset);
 		return device->read24(offset);
     }
 
@@ -84,9 +84,29 @@ namespace Blaze
 		}
 		cpu.reset(this);
 	};
+
+	struct DummyDevice: public MMIODevice {
+		Byte read8(Address offset) override {
+			return 0;
+		};
+		Word read16(Address offset) override {
+			return 0;
+		};
+		Address read24(Address offset) override {
+			return 0;
+		};
+
+		void write8(Address offset, Byte value) override {};
+		void write16(Address offset, Word value) override {};
+		void write24(Address offset, Address value) override {};
+
+		void reset(Bus* bus) override {};
+	};
+
+	static DummyDevice globalDummyDevice;
 }
 
-void Blaze::Bus::findDeviceAndOffset(Address fullAddress, MMIODevice*& outDevice, Address& outOffset) {
+void Blaze::Bus::findDeviceAndOffset(Address fullAddress, Byte bitSize, bool forWrite, Address valueWhenWriting, MMIODevice*& outDevice, Address& outOffset) {
 	bool usingHiROM = rom.type() == ROM::Type::HiROM || rom.type() == ROM::Type::ExHiROM;
 
 	Byte bank;
@@ -167,7 +187,9 @@ void Blaze::Bus::findDeviceAndOffset(Address fullAddress, MMIODevice*& outDevice
 	//   all the SNES MMIO peripherals
 
 	// if we got here, we were unable to map this access.
-	// TODO: report the issue back up to the caller (usually the CPU).
-	cpu.invalidInstruction();
-	throw std::runtime_error("Failed to map memory access to address 0x" + valueToHexString(fullAddress));
+	outDevice = &globalDummyDevice;
+	outOffset = 0;
+	if (invalidAccess) {
+		invalidAccess(fullAddress, bitSize, forWrite, valueWhenWriting);
+	}
 };

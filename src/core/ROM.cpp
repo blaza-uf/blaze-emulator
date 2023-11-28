@@ -7,6 +7,7 @@
 // 32 KiB
 static constexpr size_t MIN_ROM_SIZE = 0x8000;
 static constexpr size_t ROM_FIXED_VALUE = 0x33;
+static constexpr size_t ROM_FIXED_VALUE_ALTERNATIVE = 0x01;
 static constexpr size_t LOROM_HEADER_OFFSET = 0x007fb0;
 static constexpr size_t HIROM_HEADER_OFFSET = 0x00ffb0;
 static constexpr size_t LOROM_FIXED_VALUE_OFFSET = 0x007fda;
@@ -80,11 +81,11 @@ void Blaze::ROM::load(const std::string& path) {
 	}
 
 	// try to see if the LoROM header is valid
-	if (_memory[LOROM_FIXED_VALUE_OFFSET] == ROM_FIXED_VALUE) {
+	if (_memory[LOROM_FIXED_VALUE_OFFSET] == ROM_FIXED_VALUE || _memory[LOROM_FIXED_VALUE_OFFSET] == ROM_FIXED_VALUE_ALTERNATIVE) {
 		_type = Type::LoROM;
 	}
 	// try to see if the HiROM header is valid
-	else if (_memory[HIROM_FIXED_VALUE_OFFSET] == ROM_FIXED_VALUE) {
+	else if (_memory[HIROM_FIXED_VALUE_OFFSET] == ROM_FIXED_VALUE || _memory[LOROM_FIXED_VALUE_OFFSET] == ROM_FIXED_VALUE_ALTERNATIVE) {
 		_type = Type::HiROM;
 	} else {
 		// invalid ROM
