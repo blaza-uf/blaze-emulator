@@ -257,7 +257,7 @@ void Blaze::CPU::execute() {
 	executingPC = concat24(PBR, PC);
 
 	// decode instruction and get info (e.g. # of cycles to run, instruction size)
-	auto info = decodeInstruction(load8(executingPC), memoryAndAccumulatorAre8Bit());
+	auto info = decodeInstruction(load8(executingPC), memoryAndAccumulatorAre8Bit(), indexRegistersAre8Bit());
 
 	// Check for invalid instruction
 	if(info.opcode == Opcode::INVALID)
@@ -418,7 +418,7 @@ Blaze::Word Blaze::CPU::loadOperand(AddressingMode addressingMode, bool use8BitO
 
 // special thanks to https://llx.com/Neil/a2/opcodes.html for some wisdom on how to intelligently decode the instructions
 // (without having a giant switch statement)
-Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0, bool memoryAndAccumulatorAre8Bit) {
+Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0, bool memoryAndAccumulatorAre8Bit, bool indexRegistersAre8Bit) {
 	// before doing any smart decoding, we first do some simple opcode comparisons.
 	// there are some instructions that only require a single byte (their opcode).
 	// then there are those instructions that require multiple bytes, but have no
@@ -524,7 +524,8 @@ Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0, bool memoryAnd
 
 			if (mode == AddressingMode::Accumulator) {
 				switch (opcode) {
-					// STX, LDX, DEC, and INC don't support Accumulator addressing
+					// STX and LDX don't support Accumulator addressing
+					// DEC and INC *do* support it, but not with a pattern.
 					case Group2Opcode::STX:
 					case Group2Opcode::LDX:
 					case Group2Opcode::DEC:
@@ -537,8 +538,9 @@ Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0, bool memoryAnd
 			}
 
 			if (instructionSize == 0) {
-				// same as for Group 1 instructions
-				instructionSize = !memoryAndAccumulatorAre8Bit ? 3 : 2;
+				// only LDX should be using immediate addressing; it depends on the index flag instead of the memory/accumulator flag.
+				assert(opcode == Group2Opcode::LDX);
+				instructionSize = !indexRegistersAre8Bit ? 3 : 2;
 			}
 
 			switch (opcode) {
@@ -586,8 +588,9 @@ Blaze::CPU::Instruction Blaze::CPU::decodeInstruction(Byte inst0, bool memoryAnd
 			}
 
 			if (instructionSize == 0) {
-				// same as for Group 1 instructions
-				instructionSize = !memoryAndAccumulatorAre8Bit ? 3 : 2;
+				// only LDY, CPY, and CPX should be using immediate addressing; they all depend on the index flag instead of the memory/accumulator flag.
+				assert(opcode == Group3Opcode::LDY || opcode == Group3Opcode::CPY || opcode == Group3Opcode::CPX);
+				instructionSize = !indexRegistersAre8Bit ? 3 : 2;
 			}
 
 			switch (opcode) {
@@ -659,7 +662,7 @@ std::vector<Blaze::CPU::DisassembledInstruction> Blaze::CPU::disassemble(Bus& bu
 			break;
 		}
 
-		instruction.information = decodeInstruction(inst0, memoryAndAccumulatorAre8Bit);
+		instruction.information = decodeInstruction(inst0, memoryAndAccumulatorAre8Bit, indexRegistersAre8Bit);
 
 		if (instruction.information.opcode == Opcode::INVALID) {
 			break;
@@ -1569,6 +1572,16 @@ Blaze::Cycles Blaze::CPU::executeBIT(AddressingMode mode) {
 };
 
 Blaze::Cycles Blaze::CPU::executeCMP(AddressingMode mode) {
+	// TEMPORARY HACK (trying to get Super Mario World to boot)
+	if (mode == AddressingMode::Absolute && decodeAddress(mode) == 0x2140) {
+		// report that anything it expects to find the in APU port 0 is correct
+		loadOperand(mode, memoryAndAccumulatorAre8Bit());
+		setFlag(flags::z, true);
+		setFlag(flags::c, true);
+		setFlag(flags::n, false);
+		return 0;
+	}
+
 	Word val = loadOperand(mode, memoryAndAccumulatorAre8Bit());
 	Word temp = A.load() - val;
 	setFlag(flags::z, (A == val));
@@ -1598,12 +1611,15 @@ Blaze::Cycles Blaze::CPU::executeCPY(AddressingMode mode) {
 Blaze::Cycles Blaze::CPU::executeDEC(AddressingMode mode) {
 	Address addr = decodeAddress(mode);
 	Word val;
-	if (memoryAndAccumulatorAre8Bit()) {
+	if (mode == AddressingMode::Accumulator) {
+		val = A.load();
+		val--;
+		A.store(val);
+	} else if (memoryAndAccumulatorAre8Bit()) {
 		val = load8(addr);
 		val--;
 		store8(addr, lo8(val));
-	}
-	else {
+	} else {
 		val = load16(addr);
 		val--;
 		store16(addr, val);
@@ -1623,12 +1639,15 @@ Blaze::Cycles Blaze::CPU::executeEOR(AddressingMode mode) {
 Blaze::Cycles Blaze::CPU::executeINC(AddressingMode mode) {
 	Address addr = decodeAddress(mode);
 	Word val;
-	if (memoryAndAccumulatorAre8Bit()) {
+	if (mode == AddressingMode::Accumulator) {
+		val = A.load();
+		val++;
+		A.store(val);
+	} else if (memoryAndAccumulatorAre8Bit()) {
 		val = load8(addr);
 		val++;
 		store8(addr, lo8(val));
-	}
-	else {
+	} else {
 		val = load16(addr);
 		val++;
 		store16(addr, val);
@@ -1683,11 +1702,17 @@ Blaze::Cycles Blaze::CPU::executeLSR(AddressingMode mode) {
 	Address addr = decodeAddress(mode);
 	Word data = memoryAndAccumulatorAre8Bit() ? load8(addr) : load16(addr);
 
+	if (mode == AddressingMode::Accumulator) {
+		data = A.load();
+	}
+
 	setFlag(flags::c, (data & 0x01) != 0);
 
 	data >>= 1;
 
-	if (memoryAndAccumulatorAre8Bit()) {
+	if (mode == AddressingMode::Accumulator) {
+		A.store(data);
+	} else if (memoryAndAccumulatorAre8Bit()) {
 		store8(addr, data);
 	} else {
 		store16(addr, data);
@@ -1708,12 +1733,18 @@ Blaze::Cycles Blaze::CPU::executeROL(AddressingMode mode) {
 	Word data = memoryAndAccumulatorAre8Bit() ? load8(addr) : load16(addr);
 	Byte carry = getCarry();
 
+	if (mode == AddressingMode::Accumulator) {
+		data = A.load();
+	}
+
 	//set c to most significant bit of data
 	setFlag(flags::c, msb(data, memoryAndAccumulatorAre8Bit()));
 
 	data = (data << 1) | carry; // shift carry to least significant bit of 'data'
 
-	if (memoryAndAccumulatorAre8Bit()) {
+	if (mode == AddressingMode::Accumulator) {
+		A.store(data);
+	} else if (memoryAndAccumulatorAre8Bit()) {
 		store8(addr, data);
 	} else {
 		store16(addr, data);
@@ -1726,11 +1757,17 @@ Blaze::Cycles Blaze::CPU::executeROR(AddressingMode mode) {
 	Word data = memoryAndAccumulatorAre8Bit() ? load8(addr) : load16(addr);
 	Byte carry = getCarry();
 
+	if (mode == AddressingMode::Accumulator) {
+		data = A.load();
+	}
+
 	setFlag(flags::c, (data & 0x01) != 0);
 
 	data = (data >> 1) | carry;
 
-	if (memoryAndAccumulatorAre8Bit()) {
+	if (mode == AddressingMode::Accumulator) {
+		A.store(data);
+	} else if (memoryAndAccumulatorAre8Bit()) {
 		store8(addr, data);
 	} else {
 		store16(addr, data);

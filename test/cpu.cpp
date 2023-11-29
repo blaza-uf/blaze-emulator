@@ -533,7 +533,7 @@ TEST_CASE("Instruction decoding", "[cpu]") {
 	std::string resultHex(asHex.str());
 
 	DYNAMIC_SECTION("Decode instruction 0x" << resultHex) {
-		auto decodedInfo = CPU::decodeInstruction(opcodeByte, true);
+		auto decodedInfo = CPU::decodeInstruction(opcodeByte, true, true);
 
 		// the static_casts below are for proper integer output for test assertions
 

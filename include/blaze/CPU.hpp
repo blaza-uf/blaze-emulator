@@ -610,7 +610,7 @@ namespace Blaze {
 		Word loadOperand(AddressingMode addressingMode, bool use8BitOperand) const;
 
 		// decodes the current instruction based on the given opcode, returning the decoded instruction information
-		static Instruction decodeInstruction(Byte inst0, bool memoryAndAccumulatorAre8Bit);
+		static Instruction decodeInstruction(Byte inst0, bool memoryAndAccumulatorAre8Bit, bool indexRegistersAre8Bit);
 		static std::vector<DisassembledInstruction> disassemble(Bus& bus, Address address, size_t instructionCount, bool memoryAndAccumulatorAre8BitOnStart, bool indexRegistersAre8BitOnStart, bool usingEmulationModeOnStart, bool carryOnStart);
 
 		// executes the current (pre-decoded) instruction with the given information
