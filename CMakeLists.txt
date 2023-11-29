@@ -45,11 +45,17 @@ target_include_directories(blaze-core PUBLIC
 
 find_package(OpenGL REQUIRED COMPONENTS OpenGL)
 
-add_executable(blaze WIN32
+set(blaze_sources
 	src/gui/blaze.cpp
 	src/gui/PPU.cpp
 	src/gui/APU.cpp
 )
+
+if (WIN32)
+	set(blaze_sources ${blaze_sources} blaze.rc)
+endif()
+
+add_executable(blaze WIN32 ${blaze_sources})
 
 target_link_libraries(blaze PRIVATE blaze-core)
 
