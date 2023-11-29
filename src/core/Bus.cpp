@@ -61,7 +61,7 @@ namespace Blaze
 				auto registerBitSize = device->registerSize(offset, bitSize);
 				auto dataMask = ~(UINT32_MAX << registerBitSize);
 
-				device->write(offset, bitSize, data & dataMask);
+				device->write(offset, registerBitSize, data & dataMask);
 
 				data >>= registerBitSize;
 				bitSize -= registerBitSize;
@@ -106,6 +106,9 @@ namespace Blaze
 		dma.reset(this);
 		if (ppu != nullptr) {
 			ppu->reset(this);
+		}
+		if (apu != nullptr) {
+			apu->reset(this);
 		}
 		cpu.reset(this);
 	};
