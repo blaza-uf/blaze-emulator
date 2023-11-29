@@ -1911,3 +1911,34 @@ TEST_CASE("STZ", "[cpu][instruction][!mayfail]") {
 		);
 	}
 }
+
+TEST_CASE("STP", "[cpu][instruction]") {
+	auto usingEmulatorMode = GENERATE(false, true);
+	
+	DYNAMIC_SECTION((usingEmulatorMode ? 8 : 16) << "-bit") {
+		testInstruction(Opcode::STP, AddressingMode::Implied,
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = usingEmulatorMode ? 1 : 0;
+				cpu.stopped = false;
+			},
+			/*test=*/[&](CPU& cpu) {
+				REQUIRE(cpu.stopped);	
+			}
+		);
+	}
+}
+
+TEST_CASE("NOP", "[cpu][instruction]") {
+	auto usingEmulatorMode = GENERATE(false, true);
+	
+	DYNAMIC_SECTION((usingEmulatorMode ? 8 : 16) << "-bit") {
+		testInstruction(Opcode::NOP, AddressingMode::Implied,
+			/*addExpectedBusAccesses=*/noopAddBusAccesses,
+			/*setup=*/[&](CPU& cpu) {
+				cpu.e = usingEmulatorMode ? 1 : 0;
+			},
+			/*test=*/[&](CPU& cpu) {}
+		);
+	}
+}
