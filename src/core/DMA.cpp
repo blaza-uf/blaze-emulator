@@ -1,5 +1,7 @@
 #include <blaze/DMA.hpp>
 #include <blaze/Bus.hpp>
+#include <blaze/util.hpp>
+#include <blaze/debug.hpp>
 
 #include <cassert>
 
@@ -66,8 +68,32 @@ void Blaze::DMA::write(Address offset, Byte bitSize, Address value) {
 			}
 
 			Channel& channel = _channels[index];
-			Address byteCount = (channel.byteCount == 0 ? 65536 : channel.byteCount);
+			Address byteCount = channel.byteCount; //(channel.byteCount == 0 ? 65536 : channel.byteCount);
 			Byte patternIndex = 0;
+
+			auto initialCPUBusAddress = valueToHexString(channel.cpuBusAddress, 6, "$");
+			auto initialPeripheralBusAddress = valueToHexString(0x2100 + channel.peripheralBusAddress, 6, "$");
+
+			std::string message = "Initiating transfer from ";
+
+			if (channel.direction() == Direction::AToB) {
+				message += initialCPUBusAddress;
+			} else {
+				message += initialPeripheralBusAddress;
+			}
+
+			message += " to ";
+
+			if (channel.direction() == Direction::AToB) {
+				message += initialPeripheralBusAddress;
+			} else {
+				message += initialCPUBusAddress;
+			}
+
+			message += " of " + std::to_string(byteCount) + " bytes (pattern = " + std::string(TRANSFER_PATTERN_NAMES[static_cast<Byte>(channel.transferPattern())]);
+			message += ", address adjust mode = " + std::string(ADDRESS_ADJUST_MODE_NAMES[static_cast<Byte>(channel.addressAdjustMode())]) + ")";
+
+			Blaze::printLine("dma", message);
 
 			while (byteCount > 0) {
 				Address peripheralBusAddress = 0x2100 + channel.peripheralBusAddress;
@@ -114,6 +140,8 @@ void Blaze::DMA::write(Address offset, Byte bitSize, Address value) {
 				if (patternIndex > 3) {
 					patternIndex = 0;
 				}
+
+				--byteCount;
 			}
 
 			channel.byteCount = 0;
@@ -123,17 +151,17 @@ void Blaze::DMA::write(Address offset, Byte bitSize, Address value) {
 		Byte channelRegister = offset % 16;
 
 		switch (channelRegister) {
-			case DMAMMIORegister::DMAP: channel.parameters = value;
-			case DMAMMIORegister::BBAD: channel.peripheralBusAddress = value;
-			case DMAMMIORegister::A1TL: channel.cpuBusAddress = hi16(channel.cpuBusAddress, false) | value;
-			case DMAMMIORegister::A1TH: channel.cpuBusAddress = hi8(channel.cpuBusAddress, false) | lo8(channel.cpuBusAddress) | (value << 8);
-			case DMAMMIORegister::A1B:  channel.cpuBusAddress = lo16(channel.cpuBusAddress) | (value << 16);
-			case DMAMMIORegister::DASL: channel.byteCount = hi8(channel.byteCount, false) | value;
-			case DMAMMIORegister::DASH: channel.byteCount = lo8(channel.byteCount) | (value << 8);
-			case DMAMMIORegister::DASB: channel.indirectHDMABank = value;
-			case DMAMMIORegister::A2AL: channel.hdmaTableAddress = hi8(channel.hdmaTableAddress, false) | value;
-			case DMAMMIORegister::A2AH: channel.hdmaTableAddress = lo8(channel.hdmaTableAddress) | (value << 8);
-			case DMAMMIORegister::NLTR: channel.hdmaLineCounter = value;
+			case DMAMMIORegister::DMAP: channel.parameters = value; break;
+			case DMAMMIORegister::BBAD: channel.peripheralBusAddress = value; break;
+			case DMAMMIORegister::A1TL: channel.cpuBusAddress = hi16(channel.cpuBusAddress, false) | value; break;
+			case DMAMMIORegister::A1TH: channel.cpuBusAddress = hi8(channel.cpuBusAddress, false) | lo8(channel.cpuBusAddress) | (value << 8); break;
+			case DMAMMIORegister::A1B:  channel.cpuBusAddress = lo16(channel.cpuBusAddress) | (value << 16); break;
+			case DMAMMIORegister::DASL: channel.byteCount = hi8(channel.byteCount, false) | value; break;
+			case DMAMMIORegister::DASH: channel.byteCount = lo8(channel.byteCount) | (value << 8); break;
+			case DMAMMIORegister::DASB: channel.indirectHDMABank = value; break;
+			case DMAMMIORegister::A2AL: channel.hdmaTableAddress = hi8(channel.hdmaTableAddress, false) | value; break;
+			case DMAMMIORegister::A2AH: channel.hdmaTableAddress = lo8(channel.hdmaTableAddress) | (value << 8); break;
+			case DMAMMIORegister::NLTR: channel.hdmaLineCounter = value; break;
 		}
 	}
 };

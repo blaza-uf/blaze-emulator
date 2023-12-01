@@ -25,6 +25,19 @@ namespace Blaze {
 			DoubleWordSequential = 5,
 			AliasedSingleWordRepeated = 6,
 			AliasedDoubleWordRepeated = 7,
+
+			LAST = AliasedDoubleWordRepeated,
+		};
+
+		static constexpr std::array<const char*, static_cast<Byte>(TransferPattern::LAST) + 1> TRANSFER_PATTERN_NAMES = {
+			"SingleByte",
+			"SingleWordSequential",
+			"SingleWordRepeated",
+			"DoubleWordRepeated",
+			"QuadByteSequential",
+			"DoubleWordSequential",
+			"AliasedSingleWordRepeated",
+			"AliasedDoubleWordRepeated",
 		};
 
 		enum class Direction: bool {
@@ -33,9 +46,17 @@ namespace Blaze {
 		};
 
 		enum class AddressAdjustMode: Byte {
-			Increment,
-			Decrement,
-			Fixed,
+			Increment = 0,
+			Decrement = 1,
+			Fixed = 2,
+
+			LAST = Fixed,
+		};
+
+		static constexpr std::array<const char*, static_cast<Byte>(AddressAdjustMode::LAST) + 1> ADDRESS_ADJUST_MODE_NAMES = {
+			"Increment",
+			"Decrement",
+			"Fixed",
 		};
 
 		struct Channel {
@@ -47,11 +68,11 @@ namespace Blaze {
 			Address hdmaTableAddress = 0xffffff;
 			Byte hdmaLineCounter = 0xff;
 
-			TransferPattern transferPattern() const {
+			inline TransferPattern transferPattern() const {
 				return static_cast<TransferPattern>(parameters & 7);
 			};
 
-			AddressAdjustMode addressAdjustMode() const {
+			inline AddressAdjustMode addressAdjustMode() const {
 				switch ((parameters >> 3) & 3) {
 					case 0: return AddressAdjustMode::Increment;
 					case 2: return AddressAdjustMode::Decrement;
@@ -61,11 +82,11 @@ namespace Blaze {
 				}
 			};
 
-			Direction direction() const {
+			inline Direction direction() const {
 				return static_cast<Direction>((parameters & (1 << 7)) != 0);
 			};
 
-			bool indirect() const {
+			inline bool indirect() const {
 				return (parameters & (1 << 6)) != 0;
 			};
 		};
