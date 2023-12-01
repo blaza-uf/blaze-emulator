@@ -91,6 +91,20 @@ namespace Blaze {
 		return shift ? (unshifted >> shiftBits) : unshifted;
 	};
 
+	template<typename T>
+	static constexpr bool testBit(T value, uint8_t bitIndex) {
+		return value & (static_cast<T>(1) << bitIndex);
+	};
+
+	template<typename T>
+	static constexpr T getBit(uint8_t bitIndex, bool value) {
+		if (value) {
+			return static_cast<T>(1) << bitIndex;
+		} else {
+			return 0;
+		}
+	};
+
 	static std::string valueToHexString(uint32_t value, size_t padToLength = 0, std::string prefix = "") {
 		std::stringstream stream;
 		stream << prefix << std::hex << std::nouppercase << std::setfill('0') << std::setw(padToLength) << value;
