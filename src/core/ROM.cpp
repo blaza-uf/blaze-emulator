@@ -1,5 +1,7 @@
 #include <blaze/ROM.hpp>
 #include <blaze/util.hpp>
+#include <blaze/Bus.hpp>
+#include <blaze/debug.hpp>
 
 #include <fstream>
 #include <cstring>
@@ -39,7 +41,24 @@ size_t Blaze::ROM::byteSize() const {
 		return 0;
 	}
 
-	return static_cast<size_t>(1) << _memory[headerOffset() + HeaderFieldOffset::Size];
+	return (static_cast<size_t>(1) << _memory[headerOffset() + HeaderFieldOffset::Size]) * 1024;
+};
+
+size_t Blaze::ROM::sramByteSize() const {
+	if (_memory.empty()) {
+		return 0;
+	}
+
+	switch (static_cast<CartridgeType>(_memory[headerOffset() + HeaderFieldOffset::CartridgeType])) {
+		case CartridgeType::ROM_RAM:
+		case CartridgeType::ROM_RAM_Battery:
+		case CartridgeType::ROM_SA1_RAM:
+		case CartridgeType::ROM_SA1_RAM_Battery:
+			return (static_cast<size_t>(1) << _memory[headerOffset() + HeaderFieldOffset::RAMSize]) * 1024;
+
+		default:
+			return 0;
+	}
 };
 
 std::string Blaze::ROM::name() const {
@@ -93,6 +112,8 @@ void Blaze::ROM::load(const std::string& path) {
 		_memory.clear();
 		_type = Type::INVALID;
 	}
+
+	_bus->sram.setSize(sramByteSize());
 };
 
 Blaze::Byte Blaze::ROM::registerSize(Address offset, Byte attemptedAccessSize) {
@@ -105,11 +126,9 @@ Blaze::Address Blaze::ROM::read(Address offset, Byte bitSize) {
 		return 0;
 	}
 
-	if (offset >= _memory.size()) {
-		throw std::runtime_error("Invalid access to ROM (out-of-bounds)");
-	}
-
 	assert(bitSize == 8);
+
+	offset %= byteSize();
 
 	return _memory[offset];
 };
@@ -117,9 +136,11 @@ Blaze::Address Blaze::ROM::read(Address offset, Byte bitSize) {
 void Blaze::ROM::write(Address offset, Byte bitSize, Address value) {
 	// no-op
 	// this is read-only memory!
+	Blaze::printLine("rom", "Attempt to write " + valueToHexString(value, 6, "$") + " to " + valueToHexString(offset, 6, "$") + " within ROM");
 };
 
 void Blaze::ROM::reset(Bus* bus) {
 	_memory.clear();
 	_type = Type::INVALID;
+	_bus = bus;
 };

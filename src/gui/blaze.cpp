@@ -979,6 +979,8 @@ int main(int argc, char** argv) {
 		output << "Got ROM: " << path;
 		output << '\n';
 
+		bus.rom.reset(&bus);
+
 		try {
 			bus.rom.load(path);
 
@@ -1132,6 +1134,8 @@ int main(int argc, char** argv) {
 							if (openROMDialog(path)) {
 								output << "Got ROM: " << path;
 								output << '\n';
+
+								bus.rom.reset(&bus);
 
 								try {
 									bus.rom.load(path);

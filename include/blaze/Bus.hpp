@@ -5,6 +5,7 @@
 #include <blaze/ROM.hpp>
 #include <blaze/MMIO.hpp>
 #include <blaze/DMA.hpp>
+#include <blaze/SRAM.hpp>
 
 namespace Blaze
 {
@@ -26,6 +27,7 @@ namespace Blaze
 		MemRam ram;
 		ROM rom;
 		DMA dma;
+		SRAM sram;
 
 		//=== Devices connected to the bus but not owned by the bus ===
 		//

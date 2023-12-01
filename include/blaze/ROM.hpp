@@ -56,6 +56,7 @@ namespace Blaze {
 	private:
 		std::vector<Byte> _memory;
 		Type _type = Type::INVALID;
+		Bus* _bus = nullptr;
 
 		size_t headerOffset() const;
 
@@ -63,6 +64,7 @@ namespace Blaze {
 		Type type() const;
 		size_t byteSize() const;
 		std::string name() const;
+		size_t sramByteSize() const;
 
 		void load(const std::string& path);
 

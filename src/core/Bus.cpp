@@ -10,6 +10,8 @@ static constexpr Blaze::Address HIROM_LINEAR_START = 0x400000;
 static constexpr Blaze::Address HIROM_FINAL_128KIB_MEMORY_START = 0xfe0000;
 static constexpr Blaze::Address HIROM_FINAL_128KIB_OFFSET_START = 0x3e0000;
 
+static constexpr Blaze::Address LOROM_FINAL_SRAM = 0x070000;
+
 static constexpr Blaze::Word LOWER_HALF_MIN = 0x0000;
 static constexpr Blaze::Word LOWER_HALF_MAX = BANK_HALF_SIZE - 1;
 static constexpr Blaze::Word UPPER_HALF_MIN = BANK_HALF_SIZE;
@@ -102,6 +104,7 @@ namespace Blaze
 
 	void Bus::reset() {
 		ram.reset(this);
+		sram.reset(this);
 		// *don't* reset the ROM
 		//rom.reset(this);
 		dma.reset(this);
@@ -243,10 +246,21 @@ void Blaze::Bus::findDeviceAndOffset(Address fullAddress, Byte bitSize, bool for
 			outOffset = (addr - UPPER_HALF_MIN) + LOROM_FINAL_64KIB + ((bank == 0xfe) ? 0 : BANK_HALF_SIZE);
 			return;
 		}
+
+		if (bank >= 0x70 && bank <= 0x7d && !addressIsUpperHalf(addr)) {
+			outDevice = &sram;
+			outOffset = addr + ((bank - 0x70) * BANK_HALF_SIZE);
+			return;
+		}
+
+		if (bank >= 0xfe && bank <= 0xff && !addressIsUpperHalf(addr)) {
+			outDevice = &sram;
+			outOffset = addr + LOROM_FINAL_SRAM + ((bank - 0xfe) * BANK_HALF_SIZE);
+			return;
+		}
 	}
 
 	// TODO:
-	//   LoROM SRAM in lower half ($0000 through $7FFF) of banks $70 through $7D and banks $FE and $FF
 	//   HiROM SRAM in $6000 through $7FFF of banks $20 through $3F
 	//   all the SNES MMIO peripherals
 

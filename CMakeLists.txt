@@ -37,6 +37,7 @@ add_library(blaze-core OBJECT
 	src/core/ROM.cpp
 	src/core/MMIO.cpp
 	src/core/DMA.cpp
+	src/core/SRAM.cpp
 )
 
 target_include_directories(blaze-core PUBLIC
