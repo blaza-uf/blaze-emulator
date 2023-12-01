@@ -16,6 +16,9 @@
 #include <blaze/PPU.hpp>
 #include <blaze/APU.hpp>
 #include <blaze/debug.hpp>
+#include <shared_mutex>
+#include <condition_variable>
+#include <chrono>
 
 #include <GL/gl.h>
 
@@ -39,13 +42,21 @@
 	#include <shobjidl.h>
 #endif // _WIN32
 
+using namespace std::chrono_literals;
+
 namespace Blaze {
 	static constexpr int defaultWindowWidth         = 800;
 	static constexpr int defaultWindowHeight        = 600;
 	static constexpr const char* defaultWindowTitle = "Blaze";
 	static constexpr Color defaultWindowColor { 0, 0, 0 };
-	static constexpr int snesWidth = 352;
-	static constexpr int snesHeight = 240;
+	static constexpr int snesWidth = 256;
+	static constexpr int snesHeight = 224;
+	static constexpr auto snesMasterClock = std::chrono::duration_cast<std::chrono::milliseconds>(1s) / 21447000;
+	static constexpr auto snesFrameTime = snesMasterClock * 357368;
+	static constexpr auto snesScanlineTime = snesMasterClock * 1364;
+	static constexpr auto snesVblankFirstScanline = 225;
+	static constexpr auto snesVblankFirstScanlineOverscan = 240;
+	static constexpr auto snesScanlines = 262;
 
 #ifdef _WIN32
 	enum MenuID: UINT_PTR {
@@ -94,9 +105,14 @@ namespace Blaze {
 #endif // _WIN32
 
 	static bool continuousExecution = true;
+	static std::shared_mutex continuousExecutionMutex;
+	static std::condition_variable_any continuousExecutionCondVar;
 	static Bus bus;
 	static Address breakpoint = UINT32_MAX;
 	static bool romLoaded = false;
+	static std::condition_variable_any romLoadedCondVar;
+	static std::shared_mutex romLoadedMutex;
+	static bool running = true;
 } // namespace Blaze
 
 static void updateBreakpoint(Blaze::Address address, bool shouldUpdateTextField = true);
@@ -106,6 +122,41 @@ static void normalizeNewlines(std::string& string) {
 		string.replace(idx, 1, NEWLINE);
 		idx += sizeof(NEWLINE) - 1; // skip over the newly added string
 	}
+};
+
+static bool getContinuousExecution() {
+	std::shared_lock lock(Blaze::continuousExecutionMutex);
+	return Blaze::continuousExecution;
+};
+
+static void waitForContinuousExecution() {
+	std::shared_lock lock(Blaze::continuousExecutionMutex);
+
+	Blaze::continuousExecutionCondVar.wait(lock, []() {
+		return Blaze::continuousExecution || !Blaze::running;
+	});
+};
+
+static bool getRomLoaded() {
+	std::shared_lock lock(Blaze::romLoadedMutex);
+	return Blaze::romLoaded;
+};
+
+static void setRomLoaded(bool romLoaded) {
+	{
+		std::unique_lock lock(Blaze::romLoadedMutex);
+		Blaze::romLoaded = romLoaded;
+	}
+
+	Blaze::romLoadedCondVar.notify_all();
+};
+
+static void waitForRomLoad() {
+	std::shared_lock lock(Blaze::romLoadedMutex);
+
+	Blaze::romLoadedCondVar.wait(lock, []() {
+		return Blaze::romLoaded || !Blaze::running;
+	});
 };
 
 // Function to map SDL keycodes to SNES keys
@@ -143,14 +194,20 @@ int mapSDLToSNES(SDL_Keycode sdlKey) {
 
 #ifdef _WIN32
 static void setContinuousExecution(bool continuousExecution) {
-	Blaze::continuousExecution = continuousExecution;
-	MENUITEMINFO info = {};
+	{
+		std::unique_lock lock(Blaze::continuousExecutionMutex);
 
-	info.cbSize = sizeof(info);
-	info.fMask = MIIM_STATE;
-	info.fState = continuousExecution ? MFS_CHECKED : MFS_UNCHECKED;
+		Blaze::continuousExecution = continuousExecution;
+		MENUITEMINFO info = {};
 
-	SetMenuItemInfo(Blaze::editMenu, Blaze::MenuID::EditContinuousExecution, FALSE, &info);
+		info.cbSize = sizeof(info);
+		info.fMask = MIIM_STATE;
+		info.fState = continuousExecution ? MFS_CHECKED : MFS_UNCHECKED;
+
+		SetMenuItemInfo(Blaze::editMenu, Blaze::MenuID::EditContinuousExecution, FALSE, &info);
+	}
+
+	Blaze::continuousExecutionCondVar.notify_all();
 };
 
 static std::string utf16ToUTF8(const std::wstring& contents) {
@@ -294,10 +351,10 @@ static void updateDisassembly() {
 		return;
 	}
 
-	if (!Blaze::romLoaded) {
+	if (!getRomLoaded()) {
 		contents = "No ROM loaded";
 		regContents = "No ROM loaded";
-	} else if (Blaze::continuousExecution) {
+	} else if (getContinuousExecution()) {
 		contents = "Can't display disassembly while CPU is running";
 		regContents = "Can't display registers while CPU is running";
 	} else {
@@ -349,6 +406,9 @@ static void updateDisassembly() {
 		regContents += "A   = " + Blaze::valueToHexString(Blaze::bus.cpu.A.forceLoadFull(), 4, "$") + "\n";
 		regContents += "X   = " + Blaze::valueToHexString(Blaze::bus.cpu.X.forceLoadFull(), 4, "$") + " Y   = " + Blaze::valueToHexString(Blaze::bus.cpu.Y.forceLoadFull(), 4, "$") + "\n";
 	}
+
+	normalizeNewlines(contents);
+	normalizeNewlines(regContents);
 
 #if defined(UNICODE)
 	Edit_SetText(win32DebuggerTextWindow, utf8ToUTF16(contents).c_str());
@@ -468,7 +528,7 @@ static LRESULT CALLBACK debuggerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, 
 					}
 					break;
 				case Blaze::DebuggerNext:
-					if (HIWORD(wParam) == BN_CLICKED && !Blaze::continuousExecution) {
+					if (HIWORD(wParam) == BN_CLICKED && !getContinuousExecution()) {
 						Blaze::Address PC = Blaze::concat24(Blaze::bus.cpu.PBR, Blaze::bus.cpu.PC);
 						Blaze::CPU::Instruction instrInfo = Blaze::CPU::decodeInstruction(Blaze::bus.read8(PC), Blaze::bus.cpu.memoryAndAccumulatorAre8Bit(), Blaze::bus.cpu.indexRegistersAre8Bit());
 						if (instrInfo.opcode == Blaze::CPU::Opcode::JSR || instrInfo.opcode == Blaze::CPU::Opcode::JSL) {
@@ -485,7 +545,7 @@ static LRESULT CALLBACK debuggerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, 
 					}
 					break;
 				case Blaze::DebuggerInto:
-					if (HIWORD(wParam) == BN_CLICKED && !Blaze::continuousExecution) {
+					if (HIWORD(wParam) == BN_CLICKED && !getContinuousExecution()) {
 						Blaze::bus.cpu.execute();
 						updateDisassembly();
 					}
@@ -568,15 +628,12 @@ static LRESULT CALLBACK debuggerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, 
 	}
 };
 
-static void updateConsole(const std::string& contents) {
-#if defined(UNICODE)
-	Edit_SetText(win32DebugConsoleTextWindow, utf8ToUTF16(contents).c_str());
-#else
-	Edit_SetText(win32DebugConsoleTextWindow, contents.c_str());
-#endif
+static std::mutex pendingConsoleContentsMutex;
+static std::string pendingConsoleContents;
 
-	auto lineCount = Edit_GetLineCount(win32DebugConsoleTextWindow);
-	SendMessage(win32DebugConsoleTextWindow, EM_LINESCROLL, 0, lineCount);
+static void updateConsole(const std::string& contents) {
+	std::unique_lock lock(pendingConsoleContentsMutex);
+	pendingConsoleContents = contents;
 };
 
 static LRESULT CALLBACK debugConsoleWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -640,29 +697,72 @@ static void updateConsole(const std::string& contents) {
 };
 
 static void setContinuousExecution(bool continuousExecution) {
-	Blaze::continuousExecution = continuousExecution;
+	{
+		std::unique_lock lock(Blaze::continuousExecutionMutex);
+		Blaze::continuousExecution = continuousExecution;
+	}
+
+	Blaze::continuousExecutionCondVar.notify_all();
 	#warning TODO
 };
 #endif
 
-static bool running = true;
-
 static void cpuThreadMain(SDL_Window* window) {
 	Blaze::Bus& bus = Blaze::bus;
 	SDL_GLContext ourGLContext = nullptr;
+	auto totalScanlineTime = 0us;
+	auto& ppu = *dynamic_cast<Blaze::PPU*>(bus.ppu);
+	size_t scanline = 0;
 
 	ourGLContext = SDL_GL_CreateContext(window);
 
-	while (running) {
+	while (Blaze::running) {
 		if (Blaze::concat24(bus.cpu.PBR, bus.cpu.PC) == Blaze::breakpoint) {
 			updateBreakpoint(UINT32_MAX);
 			setContinuousExecution(false);
 			updateDisassembly();
 		}
 
-		if (Blaze::romLoaded && Blaze::continuousExecution) {
-			// execute a single instruction
-			bus.cpu.execute();
+		waitForRomLoad();
+		waitForContinuousExecution();
+
+		if (!Blaze::running) {
+			break;
+		}
+
+		auto beginTime = std::chrono::steady_clock::now();
+
+		{
+			std::shared_lock lock(Blaze::continuousExecutionMutex);
+
+			if (getRomLoaded() && Blaze::continuousExecution) {
+				// execute a single instruction
+				bus.cpu.execute();
+			}
+		}
+
+		auto endTime = std::chrono::steady_clock::now();
+
+		totalScanlineTime += std::chrono::duration_cast<std::chrono::microseconds>(endTime - beginTime);
+
+		if (totalScanlineTime >= Blaze::snesScanlineTime) {
+			totalScanlineTime = 0us;
+			++scanline;
+
+			if (scanline >= Blaze::snesScanlines) {
+				scanline = 0;
+			}
+		}
+
+		if (
+			(ppu.overscan() && scanline == Blaze::snesVblankFirstScanlineOverscan) ||
+			(!ppu.overscan() && scanline == Blaze::snesVblankFirstScanline)
+		) {
+			ppu.beginVBlank();
+		}
+
+		if (scanline == 0) {
+			ppu.endVBlank();
 		}
 	}
 };
@@ -682,6 +782,14 @@ void Blaze::print(const std::string& subsystem, const std::string& message) {
 
 	normalizeNewlines(copy);
 
+#if _WIN32
+#if defined(UNICODE)
+	OutputDebugString(utf8ToUTF16(copy).c_str());
+#else
+	OutputDebugString(copy.c_str());
+#endif
+#endif
+
 	debugConsoleOutput += copy;
 	updateConsole(debugConsoleOutput);
 };
@@ -695,7 +803,6 @@ int main(int argc, char** argv) {
 	SDL_Event event;
 	std::map<int, bool> keyboard;
 	SDL_SysWMinfo mainWindowInfo;
-	bool& romLoaded = Blaze::romLoaded;
 	Blaze::Bus& bus = Blaze::bus;
 	bool holdingLeftControl = false;
 	bool holdingRightControl = false;
@@ -867,7 +974,7 @@ int main(int argc, char** argv) {
 		std::stringstream output;
 		bool romSuccessfullyLoaded = false;
 
-		romLoaded = false;
+		setRomLoaded(false);
 
 		output << "Got ROM: " << path;
 		output << '\n';
@@ -892,7 +999,7 @@ int main(int argc, char** argv) {
 		Blaze::clear();
 		Blaze::printLine("rom", output.str());
 
-		romLoaded = romSuccessfullyLoaded;
+		setRomLoaded(romSuccessfullyLoaded);
 
 		updateDisassembly();
 	}
@@ -909,9 +1016,7 @@ int main(int argc, char** argv) {
 	cpuThread = std::thread(cpuThreadMain, mainWindow);
 
 	// main event loop
-	while (running) {
-		ppu.beginVBlank();
-
+	while (Blaze::running) {
 		// process all events for this frame
 		while (SDL_PollEvent(&event)) {
 			int snesKey;
@@ -919,7 +1024,9 @@ int main(int argc, char** argv) {
 			switch (event.type) {
 				case SDL_QUIT:
 					// exit if window closed
-					running = false;
+					Blaze::running = false;
+					Blaze::romLoadedCondVar.notify_all();
+					Blaze::continuousExecutionCondVar.notify_all();
 					break;
 
 				case SDL_KEYDOWN: {
@@ -1020,7 +1127,7 @@ int main(int argc, char** argv) {
 							std::stringstream output;
 							bool romSuccessfullyLoaded = false;
 
-							romLoaded = false;
+							setRomLoaded(false);
 
 							if (openROMDialog(path)) {
 								output << "Got ROM: " << path;
@@ -1049,13 +1156,13 @@ int main(int argc, char** argv) {
 							Blaze::clear();
 							Blaze::printLine("rom", output.str());
 
-							romLoaded = romSuccessfullyLoaded;
+							setRomLoaded(romSuccessfullyLoaded);
 
 							updateDisassembly();
 						} break;
 
 						case Blaze::MenuID::FileClose: {
-							romLoaded = false;
+							setRomLoaded(false);
 
 							// when a ROM is unloaded, we need to reset all components
 							bus.reset();
@@ -1067,7 +1174,9 @@ int main(int argc, char** argv) {
 						} break;
 
 						case Blaze::MenuID::FileExit: {
-							running = false;
+							Blaze::running = false;
+							Blaze::romLoadedCondVar.notify_all();
+							Blaze::continuousExecutionCondVar.notify_all();
 						} break;
 
 						case Blaze::MenuID::EditOptions: {
@@ -1075,7 +1184,7 @@ int main(int argc, char** argv) {
 						} break;
 
 						case Blaze::MenuID::EditContinuousExecution: {
-							setContinuousExecution(!Blaze::continuousExecution);
+							setContinuousExecution(!getContinuousExecution());
 							updateDisassembly();
 						} break;
 
@@ -1110,14 +1219,27 @@ int main(int argc, char** argv) {
 			}
 		}
 
-		if (!running) {
+		if (!Blaze::running) {
 			break;
 		}
+
+#if _WIN32
+		{
+			std::unique_lock lock(pendingConsoleContentsMutex);
+			#if defined(UNICODE)
+				Edit_SetText(win32DebugConsoleTextWindow, utf8ToUTF16(pendingConsoleContents).c_str());
+			#else
+				Edit_SetText(win32DebugConsoleTextWindow, pendingConsoleContents.c_str());
+			#endif
+
+			auto lineCount = Edit_GetLineCount(win32DebugConsoleTextWindow);
+			SendMessage(win32DebugConsoleTextWindow, EM_LINESCROLL, 0, lineCount);
+		}
+#endif
 
 		// clear the display
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		ppu.endVBlank();
 		SDL_GL_SwapWindow(mainWindow);
 	}
 
