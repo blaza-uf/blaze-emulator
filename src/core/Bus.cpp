@@ -1,5 +1,6 @@
 #include "blaze/Bus.hpp"
 #include <blaze/util.hpp>
+#include <blaze/PPU.hpp>
 
 static constexpr Blaze::Address BANK_SIZE = 0x010000;
 static constexpr Blaze::Address BANK_HALF_SIZE = BANK_SIZE / 2;
@@ -141,35 +142,49 @@ void Blaze::Bus::findDeviceAndOffset(Address fullAddress, Byte bitSize, bool for
 		bank -= 0x80;
 	}
 
-	if (bank == 0x00 && addr >= 0x2100 && addr <= 0x213f) {
+	if (bank >= 0x00 && bank <= 0x3f && addr == 0x4200) {
+		// NMI and timer control register
+		outDevice = ppu;
+		outOffset = PPU_SPECIAL_OFFSET_NMITIMEN;
+		return;
+	}
+
+	if (bank >= 0x00 && bank <= 0x3f && addr == 0x4210) {
+		// NMI status register
+		outDevice = ppu;
+		outOffset = PPU_SPECIAL_OFFSET_RDNMI;
+		return;
+	}
+
+	if (bank >= 0x00 && bank <= 0x3f && addr >= 0x2100 && addr <= 0x213f) {
 		// the PPU has memory-mapped registers from $2100 through $213F
 		outDevice = ppu;
 		outOffset = addr - 0x2100;
 		return;
 	}
 
-	if (bank == 0x00 && addr == 0x420b) {
+	if (bank >= 0x00 && bank <= 0x3f && addr == 0x420b) {
 		// DMA enable register
 		outDevice = &dma;
 		outOffset = DMA_SPECIAL_OFFSET_MDMAEN;
 		return;
 	}
 
-	if (bank == 0x00 && addr == 0x420c) {
+	if (bank >= 0x00 && bank <= 0x3f && addr == 0x420c) {
 		// HDMA enable register
 		outDevice = &dma;
 		outOffset = DMA_SPECIAL_OFFSET_HDMAEN;
 		return;
 	}
 
-	if (bank == 0x00 && addr >= 0x4300 && addr <= 0x437f) {
+	if (bank >= 0x00 && bank <= 0x3f && addr >= 0x4300 && addr <= 0x437f) {
 		// DMA control region
 		outDevice = &dma;
 		outOffset = addr - 0x4300;
 		return;
 	}
 
-	if (bank == 0x00 && addr >= 0x2140 && addr <= 0x217f) {
+	if (bank >= 0x00 && bank <= 0x3f && addr >= 0x2140 && addr <= 0x217f) {
 		// APU IO registers (only 4 of them, but mirrored across this range)
 		outDevice = apu;
 		outOffset = addr % 4;
