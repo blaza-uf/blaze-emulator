@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <functional>
 #include <string>
+#include <mutex>
 
 namespace Blaze {
 	using ClockTicks = uint32_t;
@@ -564,6 +565,8 @@ namespace Blaze {
 			Word operator^(Word rhs) const;
 		};
 
+		mutable std::recursive_mutex stateMutex;
+
 		Byte e = 1; //emulation mode. separate from p register flags
 
 		Register A; // accumulator
@@ -748,6 +751,7 @@ namespace Blaze {
 		};
 
 		bool usingEmulationMode() const {
+			std::unique_lock lock(stateMutex);
 			return e != 0;
 		};
 	};

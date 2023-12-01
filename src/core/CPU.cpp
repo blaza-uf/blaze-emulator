@@ -2,6 +2,11 @@
 #include "blaze/Bus.hpp"
 #include <cassert>
 #include <blaze/util.hpp>
+#include <blaze/debug.hpp>
+
+#ifndef BLAZE_PRINT_SUBROUTINES
+	#define BLAZE_PRINT_SUBROUTINES 0
+#endif
 
 // TODO: fill in cycle info
 const std::unordered_map<Blaze::Byte, Blaze::CPU::Instruction> Blaze::CPU::INSTRUCTIONS_WITH_NO_PATTERN {
@@ -94,6 +99,8 @@ static constexpr Blaze::Byte opcodeGetSubopcode(Blaze::Byte opcode) {
 // NOLINTEND(readability-magic-numbers, readability-identifier-length)
 
 void Blaze::CPU::reset(BusInterface* theBus) {
+	std::unique_lock lock(stateMutex);
+
 	bus = theBus;
 
 	if (theBus != nullptr) {
@@ -119,6 +126,8 @@ void Blaze::CPU::reset(BusInterface* theBus) {
 }
 
 void Blaze::CPU::irq() {
+	std::unique_lock lock(stateMutex);
+
 	// If the interrupt is not masked
 	if (!getFlag(flags::i))
 	{
@@ -164,6 +173,8 @@ void Blaze::CPU::irq() {
 }
 
 void Blaze::CPU::nmi() {
+	std::unique_lock lock(stateMutex);
+
 	if (!usingEmulationMode()) {
 		// in native mode: push the PBR
 		store8(SP, PBR);
@@ -201,6 +212,8 @@ void Blaze::CPU::nmi() {
 }
 
 void Blaze::CPU::abort() {
+	std::unique_lock lock(stateMutex);
+
 	if (!usingEmulationMode()) {
 		store8(SP, PBR);
 		SP--;
@@ -248,6 +261,8 @@ void Blaze::CPU::setOverflowFlag(Word leftOperand, Word rightOperand, Word resul
 };
 
 void Blaze::CPU::execute() {
+	std::unique_lock lock(stateMutex);
+
 	if (stopped || waitingForInterrupt) {
 		// if the processor is stopped or waiting for an interrupt, there's nothing for us to do
 		return;
@@ -263,6 +278,7 @@ void Blaze::CPU::execute() {
 	if(info.opcode == Opcode::INVALID)
 	{
 		invalidInstruction();
+		return;
 	}
 
 	// the PC is always incremented to the next instruction before the current instruction starts executing
@@ -279,6 +295,7 @@ void Blaze::CPU::execute() {
 }
 
 void Blaze::CPU::setFlag(Byte flag, bool s) {
+	std::unique_lock lock(stateMutex);
 	if (s) {
 		P |= flag; // set flag
 	} else {
@@ -287,6 +304,7 @@ void Blaze::CPU::setFlag(Byte flag, bool s) {
 }
 
 bool Blaze::CPU::getFlag(Byte f) const {
+	std::unique_lock lock(stateMutex);
 	return (P & f) != 0;
 };
 
@@ -1076,6 +1094,10 @@ Blaze::Cycles Blaze::CPU::executeJSL() {
 	// subtract 1 because it's required
 	Address pcToStore = concat24(PBR, PC - 1);
 
+#if BLAZE_PRINT_SUBROUTINES
+	Blaze::printLine("cpu", "Jumping to subroutine at " + valueToHexString(newPC, 6, "$"));
+#endif
+
 	SP -= 2;
 	store24(SP, pcToStore);
 	--SP;
@@ -1321,6 +1343,10 @@ Blaze::Cycles Blaze::CPU::executeRTL() {
 	split24(newPC, PBR, PC);
 	++PC; // add 1 to account for the `- 1` when storing the PC (it's required)
 
+#if BLAZE_PRINT_SUBROUTINES
+	Blaze::printLine("cpu", "Returning from subroutine to " + valueToHexString(PC, 6, "$"));
+#endif
+
 	return 0;
 };
 
@@ -1331,6 +1357,10 @@ Blaze::Cycles Blaze::CPU::executeRTS() {
 
 	// add 1 to account for the `- 1` when storing the PC (it's required)
 	PC = newPC + 1;
+
+#if BLAZE_PRINT_SUBROUTINES
+	Blaze::printLine("cpu", "Returning from subroutine to " + valueToHexString(PC, 6, "$"));
+#endif
 
 	return 0;
 };
@@ -1386,6 +1416,9 @@ Blaze::Cycles Blaze::CPU::executeTCD() {
 
 Blaze::Cycles Blaze::CPU::executeTCS() {
 	SP = A.forceLoadFull();
+	if (SP == 0x4200) {
+		throw std::runtime_error("invalid stack address");
+	}
 	return 0;
 };
 
@@ -1418,6 +1451,9 @@ Blaze::Cycles Blaze::CPU::executeTXS() {
 		SP = 0x0100 | lo8(X.load());
 	} else {
 		SP = X.load();
+		if (SP == 0x4200) {
+			throw std::runtime_error("invalid stack address");
+		}
 	}
 	return 0;
 };
@@ -1573,13 +1609,19 @@ Blaze::Cycles Blaze::CPU::executeBIT(AddressingMode mode) {
 
 Blaze::Cycles Blaze::CPU::executeCMP(AddressingMode mode) {
 	// TEMPORARY HACK (trying to get Super Mario World to boot)
-	if (mode == AddressingMode::Absolute && decodeAddress(mode) == 0x2140) {
-		// report that anything it expects to find the in APU port 0 is correct
-		loadOperand(mode, memoryAndAccumulatorAre8Bit());
-		setFlag(flags::z, true);
-		setFlag(flags::c, true);
-		setFlag(flags::n, false);
-		return 0;
+	{
+		auto fullAddr = decodeAddress(mode);
+		Byte bank;
+		Word addr;
+		split24(fullAddr, bank, addr);
+		if (bank >= 0x00 && bank <= 0x3f && addr == 0x2140) {
+			// report that anything it expects to find the in APU port 0 is correct
+			loadOperand(mode, memoryAndAccumulatorAre8Bit());
+			setFlag(flags::z, true);
+			setFlag(flags::c, true);
+			setFlag(flags::n, false);
+			return 0;
+		}
 	}
 
 	Word val = loadOperand(mode, memoryAndAccumulatorAre8Bit());
@@ -1667,6 +1709,10 @@ Blaze::Cycles Blaze::CPU::executeJSR(AddressingMode mode) {
 	Address newPC = decodeAddress(mode);
 	// subtract 1 because it's required
 	Word pcToStore = PC - 1;
+
+#if BLAZE_PRINT_SUBROUTINES
+	Blaze::printLine("cpu", "Jumping to subroutine at " + valueToHexString(newPC, 6, "$"));
+#endif
 
 	--SP;
 	store16(SP, pcToStore);
