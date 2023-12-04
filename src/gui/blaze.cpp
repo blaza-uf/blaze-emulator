@@ -22,20 +22,6 @@
 
 #include <GL/gl.h>
 
-// Define SNES key constants
-#define SNES_KEY_UP      0
-#define SNES_KEY_DOWN    1
-#define SNES_KEY_LEFT    2
-#define SNES_KEY_RIGHT   3
-#define SNES_KEY_A       4
-#define SNES_KEY_B       5
-#define SNES_KEY_X       6
-#define SNES_KEY_Y       7
-#define SNES_KEY_START   8
-#define SNES_KEY_SELECT  9
-#define SNES_KEY_L       10
-#define SNES_KEY_R       11
-
 #ifdef _WIN32
 	#include <windows.h>
 	#include <windowsx.h>
@@ -57,6 +43,21 @@ namespace Blaze {
 	static constexpr auto snesVblankFirstScanline = 225;
 	static constexpr auto snesVblankFirstScanlineOverscan = 240;
 	static constexpr auto snesScanlines = 262;
+	
+	enum snesKeyConstants {
+		SNES_KEY_UP = 0,
+		SNES_KEY_DOWN = 1,
+		SNES_KEY_LEFT = 2,
+		SNES_KEY_RIGHT = 3,
+		SNES_KEY_A = 4,
+		SNES_KEY_B = 5,
+		SNES_KEY_X = 6,
+		SNES_KEY_Y = 7,
+		SNES_KEY_START = 8,
+		SNES_KEY_SELECT = 9,
+		SNES_KEY_L = 10,
+		SNES_KEY_R = 11,
+	};
 
 #ifdef _WIN32
 	enum MenuID: UINT_PTR {
@@ -164,33 +165,34 @@ int mapSDLToSNES(SDL_Keycode sdlKey) {
 
     switch (sdlKey) {
         case SDLK_UP:
-            return SNES_KEY_UP;
+            return Blaze::SNES_KEY_UP;
         case SDLK_DOWN:
-            return SNES_KEY_DOWN;
+            return Blaze::SNES_KEY_DOWN;
         case SDLK_LEFT:
-            return SNES_KEY_LEFT;
+            return Blaze::SNES_KEY_LEFT;
         case SDLK_RIGHT:
-            return SNES_KEY_RIGHT;
+            return Blaze::SNES_KEY_RIGHT;
         case SDLK_x:
-            return SNES_KEY_A; // map x key to snes A
+            return Blaze::SNES_KEY_A; // map x key to snes A
         case SDLK_z:
-            return SNES_KEY_B; // map z key to snes B
+            return Blaze::SNES_KEY_B; // map z key to snes B
         case SDLK_v:
-            return SNES_KEY_X; // map v key to snes X
+            return Blaze::SNES_KEY_X; // map v key to snes X
         case SDLK_c:
-            return SNES_KEY_Y; // map c key to snes y
-        case SDLK_RETURN: // could change start mapping
-            return SNES_KEY_START;
-        case SDLK_SPACE:  // could change select mapping
-            return SNES_KEY_SELECT;
+            return Blaze::SNES_KEY_Y; // map c key to snes y
+        case SDLK_RETURN: // could change 'start' mapping
+            return Blaze::SNES_KEY_START;
+        case SDLK_SPACE:  // could change 'select mapping
+            return Blaze::SNES_KEY_SELECT;
         case SDLK_a:
-            return SNES_KEY_L;
+            return Blaze::SNES_KEY_L;
         case SDLK_s:
-            return SNES_KEY_R;
+            return Blaze::SNES_KEY_R;
         default:
             return -1; // unmapped keys
     }
 }
+
 
 #ifdef _WIN32
 static void setContinuousExecution(bool continuousExecution) {
@@ -801,7 +803,6 @@ void Blaze::printLine(const std::string& subsystem, const std::string& message) 
 int main(int argc, char** argv) {
 	SDL_Window* mainWindow = nullptr;
 	SDL_Event event;
-	std::map<int, bool> keyboard;
 	SDL_SysWMinfo mainWindowInfo;
 	Blaze::Bus& bus = Blaze::bus;
 	bool holdingLeftControl = false;
