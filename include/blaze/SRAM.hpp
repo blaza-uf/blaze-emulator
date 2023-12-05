@@ -3,6 +3,7 @@
 #include <blaze/MMIO.hpp>
 
 #include <vector>
+#include <cstddef> // for size_t
 
 namespace Blaze {
 	class SRAM: public MMIODevice {

@@ -3,11 +3,13 @@
 #include <blaze/MMIO.hpp>
 #include <blaze/util.hpp>
 
-#include <SDL.h>
-
 #include <mutex>
 #include <array>
 #include <functional>
+
+// forward declarations
+struct SDL_Renderer;
+struct SDL_Surface;
 
 namespace Blaze {
 	struct Bus;
