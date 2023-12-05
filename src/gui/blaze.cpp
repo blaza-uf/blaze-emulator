@@ -20,7 +20,19 @@
 #include <condition_variable>
 #include <chrono>
 
-#include <GL/gl.h>
+// Define SNES key constants
+#define SNES_KEY_UP      0
+#define SNES_KEY_DOWN    1
+#define SNES_KEY_LEFT    2
+#define SNES_KEY_RIGHT   3
+#define SNES_KEY_A       4
+#define SNES_KEY_B       5
+#define SNES_KEY_X       6
+#define SNES_KEY_Y       7
+#define SNES_KEY_START   8
+#define SNES_KEY_SELECT  9
+#define SNES_KEY_L       10
+#define SNES_KEY_R       11
 
 #ifdef _WIN32
 	#include <windows.h>
@@ -43,21 +55,7 @@ namespace Blaze {
 	static constexpr auto snesVblankFirstScanline = 225;
 	static constexpr auto snesVblankFirstScanlineOverscan = 240;
 	static constexpr auto snesScanlines = 262;
-	
-	enum snesKeyConstants {
-		SNES_KEY_UP = 0,
-		SNES_KEY_DOWN = 1,
-		SNES_KEY_LEFT = 2,
-		SNES_KEY_RIGHT = 3,
-		SNES_KEY_A = 4,
-		SNES_KEY_B = 5,
-		SNES_KEY_X = 6,
-		SNES_KEY_Y = 7,
-		SNES_KEY_START = 8,
-		SNES_KEY_SELECT = 9,
-		SNES_KEY_L = 10,
-		SNES_KEY_R = 11,
-	};
+	static constexpr size_t maxConsoleChars = 5000;
 
 #ifdef _WIN32
 	enum MenuID: UINT_PTR {
@@ -165,34 +163,33 @@ int mapSDLToSNES(SDL_Keycode sdlKey) {
 
     switch (sdlKey) {
         case SDLK_UP:
-            return Blaze::SNES_KEY_UP;
+            return SNES_KEY_UP;
         case SDLK_DOWN:
-            return Blaze::SNES_KEY_DOWN;
+            return SNES_KEY_DOWN;
         case SDLK_LEFT:
-            return Blaze::SNES_KEY_LEFT;
+            return SNES_KEY_LEFT;
         case SDLK_RIGHT:
-            return Blaze::SNES_KEY_RIGHT;
+            return SNES_KEY_RIGHT;
         case SDLK_x:
-            return Blaze::SNES_KEY_A; // map x key to snes A
+            return SNES_KEY_A; // map x key to snes A
         case SDLK_z:
-            return Blaze::SNES_KEY_B; // map z key to snes B
+            return SNES_KEY_B; // map z key to snes B
         case SDLK_v:
-            return Blaze::SNES_KEY_X; // map v key to snes X
+            return SNES_KEY_X; // map v key to snes X
         case SDLK_c:
-            return Blaze::SNES_KEY_Y; // map c key to snes y
-        case SDLK_RETURN: // could change 'start' mapping
-            return Blaze::SNES_KEY_START;
-        case SDLK_SPACE:  // could change 'select mapping
-            return Blaze::SNES_KEY_SELECT;
+            return SNES_KEY_Y; // map c key to snes y
+        case SDLK_RETURN: // could change start mapping
+            return SNES_KEY_START;
+        case SDLK_SPACE:  // could change select mapping
+            return SNES_KEY_SELECT;
         case SDLK_a:
-            return Blaze::SNES_KEY_L;
+            return SNES_KEY_L;
         case SDLK_s:
-            return Blaze::SNES_KEY_R;
+            return SNES_KEY_R;
         default:
             return -1; // unmapped keys
     }
 }
-
 
 #ifdef _WIN32
 static void setContinuousExecution(bool continuousExecution) {
@@ -711,12 +708,9 @@ static void setContinuousExecution(bool continuousExecution) {
 
 static void cpuThreadMain(SDL_Window* window) {
 	Blaze::Bus& bus = Blaze::bus;
-	SDL_GLContext ourGLContext = nullptr;
 	auto totalScanlineTime = 0us;
 	auto& ppu = *dynamic_cast<Blaze::PPU*>(bus.ppu);
 	size_t scanline = 0;
-
-	ourGLContext = SDL_GL_CreateContext(window);
 
 	while (Blaze::running) {
 		if (Blaze::concat24(bus.cpu.PBR, bus.cpu.PC) == Blaze::breakpoint) {
@@ -793,6 +787,11 @@ void Blaze::print(const std::string& subsystem, const std::string& message) {
 #endif
 
 	debugConsoleOutput += copy;
+
+	if (debugConsoleOutput.size() >= Blaze::maxConsoleChars) {
+		debugConsoleOutput.erase(debugConsoleOutput.begin(), debugConsoleOutput.end() - Blaze::maxConsoleChars);
+	}
+
 	updateConsole(debugConsoleOutput);
 };
 
@@ -803,16 +802,18 @@ void Blaze::printLine(const std::string& subsystem, const std::string& message) 
 int main(int argc, char** argv) {
 	SDL_Window* mainWindow = nullptr;
 	SDL_Event event;
+	std::map<int, bool> keyboard;
 	SDL_SysWMinfo mainWindowInfo;
 	Blaze::Bus& bus = Blaze::bus;
 	bool holdingLeftControl = false;
 	bool holdingRightControl = false;
 	bool holdingLeftShift = false;
 	bool holdingRightShift = false;
-	SDL_GLContext theGLContext = nullptr;
+	SDL_Renderer* renderer = nullptr;
 	std::thread cpuThread;
 	Blaze::PPU ppu;
 	Blaze::APU apu;
+	SDL_Texture* renderTexture = nullptr;
 
 	bus.ppu = &ppu;
 	bus.apu = &apu;
@@ -832,14 +833,6 @@ int main(int argc, char** argv) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to initialize SDL: %s", SDL_GetError());
 		return 1;
 	}
-
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-
-	SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
-
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
 
 #ifdef _WIN32
 	DWORD fontFileAttrs = INVALID_FILE_ATTRIBUTES;
@@ -863,16 +856,16 @@ int main(int argc, char** argv) {
 		#warning TODO
 #endif
 
-	mainWindow = SDL_CreateWindow("Blaze", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, Blaze::defaultWindowWidth, Blaze::defaultWindowHeight, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+	mainWindow = SDL_CreateWindow("Blaze", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, Blaze::defaultWindowWidth, Blaze::defaultWindowHeight, SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
 	if (mainWindow == nullptr) {
-		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create main window and renderer: %s", SDL_GetError());
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create main window: %s", SDL_GetError());
 		SDL_Quit();
 		return 1;
 	}
 
-	theGLContext = SDL_GL_CreateContext(mainWindow);
-	if (theGLContext == nullptr) {
-		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create GL context: %s", SDL_GetError());
+	renderer = SDL_CreateRenderer(mainWindow, -1, SDL_RENDERER_PRESENTVSYNC);
+	if (renderer == nullptr) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create renderer for main window: %s", SDL_GetError());
 		SDL_Quit();
 		return 1;
 	}
@@ -1010,19 +1003,21 @@ int main(int argc, char** argv) {
 		updateDisassembly();
 	}
 
-	// set up the GL context
-	glClearColor(Blaze::defaultWindowColor.r, Blaze::defaultWindowColor.g, Blaze::defaultWindowColor.b, Blaze::defaultWindowColor.a);
-	glMatrixMode(GL_PROJECTION_MATRIX);
-	glLoadIdentity();
-	glMatrixMode(GL_MODELVIEW_MATRIX);
-	glLoadIdentity();
-	glViewport(0, 0, Blaze::defaultWindowWidth, Blaze::defaultWindowHeight);
+	// set up a render texture for the PPU
+	renderTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, Blaze::snesWidth, Blaze::snesHeight);
+	if (renderTexture == nullptr) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create render texture: %s", SDL_GetError());
+	}
 
 	// create the CPU thread
 	cpuThread = std::thread(cpuThreadMain, mainWindow);
 
+	long windowWidth = 0;
+	long windowHeight = 0;
+
 	// main event loop
 	while (Blaze::running) {
+
 		// process all events for this frame
 		while (SDL_PollEvent(&event)) {
 			int snesKey;
@@ -1218,7 +1213,8 @@ int main(int argc, char** argv) {
 
 			case SDL_WINDOWEVENT: {
 				if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
-					glViewport(0, 0, event.window.data1, event.window.data2);
+					windowWidth = event.window.data1;
+					windowHeight = event.window.data2;
 				}
 			} break;
 
@@ -1246,14 +1242,37 @@ int main(int argc, char** argv) {
 #endif
 
 		// clear the display
-		glClear(GL_COLOR_BUFFER_BIT);
+		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+		SDL_RenderClear(renderer);
 
-		SDL_GL_SwapWindow(mainWindow);
+		SDL_Rect rect {
+			0, 0,
+			Blaze::snesWidth, Blaze::snesHeight,
+		};
+
+		SDL_Rect windowRect {
+			0, 0,
+			windowWidth, windowHeight,
+		};
+
+		ppu.renderSurface([&](SDL_Surface* surface) {
+			SDL_Surface* destSurface = nullptr;
+			if (SDL_LockTextureToSurface(renderTexture, &rect, &destSurface) == 0) {
+				SDL_BlitSurface(surface, &rect, destSurface, &rect);
+				SDL_UnlockTexture(renderTexture);
+			} else {
+				SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to lock texture: %s", SDL_GetError());
+			}
+		});
+
+		SDL_RenderCopy(renderer, renderTexture, &rect, &windowRect);
+		SDL_RenderPresent(renderer);
 	}
 
 	cpuThread.join();
 
-	SDL_GL_DeleteContext(theGLContext);
+	SDL_DestroyRenderer(renderer);
+	SDL_DestroyTexture(renderTexture);
 	SDL_DestroyWindow(mainWindow);
 
 	SDL_Quit();

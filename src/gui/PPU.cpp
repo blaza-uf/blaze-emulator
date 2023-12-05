@@ -1,5 +1,11 @@
 #include <blaze/PPU.hpp>
 #include <blaze/Bus.hpp>
+#include <SDL.h>
+
+namespace Blaze {
+	static constexpr int snesWidth = 256;
+	static constexpr int snesHeight = 224;
+};
 
 struct PPUMMIORegister {
 	enum IgnoreMe: Blaze::Address {
@@ -478,11 +484,13 @@ void Blaze::PPU::write(Address offset, Byte bitSize, Address value) {
 			break;
 
 		case PPU_SPECIAL_OFFSET_NMITIMEN: {
+			auto prev = _nmitimen;
+
 			_nmitimen = value;
 
 			{
 				std::unique_lock lock(_rdnmiMutex);
-				if ((_nmitimen & (1 << 7)) != 0) {
+				if ((prev & (1 << 7)) == 0 && (_nmitimen & (1 << 7)) != 0) {
 					_bus->cpu.nmi();
 				}
 			}
@@ -544,16 +552,72 @@ void Blaze::PPU::reset(Bus* bus) {
 	}
 };
 
-void Blaze::PPU::beginVBlank() {
-	std::unique_lock lock(_rdnmiMutex);
-	_rdnmi |= (1 << 7);
+// note that we actually render in the opposite order of beginning and ending vblank:
+// we render to the backbuffer after ending vblank, and we swap the backbuffer with the
+// frontbuffer when beginning vblank. this matches the SNES PPU behavior: the vblank
+// period is used for the *software* to set up what will be rendered and then the period
+// *outside* vblank is used by the PPU to perform the rendering.
 
-	if ((_nmitimen & (1 << 7)) != 0) {
-		_bus->cpu.nmi();
+void Blaze::PPU::beginVBlank() {
+	// swap the render texture with the backbuffer
+	{
+		std::unique_lock lock(_renderTextureMutex);
+		SDL_RenderPresent(_backbufferRenderer);
+
+		auto tmp = _renderer;
+		_renderer = _backbufferRenderer;
+		_backbufferRenderer = tmp;
+
+		_swapped = true;
+	}
+
+	{
+		std::unique_lock lock(_rdnmiMutex);
+		_rdnmi |= (1 << 7);
+
+		if ((_nmitimen & (1 << 7)) != 0) {
+			_bus->cpu.nmi();
+		}
 	}
 };
 
 void Blaze::PPU::endVBlank() {
-	std::unique_lock lock(_rdnmiMutex);
-	_rdnmi &= ~(1 << 7);
+	{
+		std::unique_lock lock(_rdnmiMutex);
+		_rdnmi &= ~(1 << 7);
+	}
+
+	// set up the framebuffer for this frame
+	// render a white background, just as a test
+	SDL_SetRenderDrawColor(_backbufferRenderer, 255, 255, 255, 255);
+	SDL_RenderClear(_backbufferRenderer);
+};
+
+Blaze::PPU::PPU() {
+	_renderSurface = SDL_CreateRGBSurfaceWithFormat(0, Blaze::snesWidth, Blaze::snesHeight, 32, SDL_PIXELFORMAT_RGBA8888);
+	if (_renderSurface == nullptr) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create PPU render surface: %s", SDL_GetError());
+	}
+
+	_renderBackbuffer = SDL_CreateRGBSurfaceWithFormat(0, Blaze::snesWidth, Blaze::snesHeight, 32, SDL_PIXELFORMAT_RGBA8888);
+	if (_renderBackbuffer == nullptr) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create PPU render backbuffer surface: %s", SDL_GetError());
+	}
+
+	_renderer = SDL_CreateSoftwareRenderer(_renderSurface);
+	if (_renderer == nullptr) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create PPU renderer: %s", SDL_GetError());
+	}
+
+	_backbufferRenderer = SDL_CreateSoftwareRenderer(_renderBackbuffer);
+	if (_backbufferRenderer == nullptr) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create PPU backbuffer renderer: %s", SDL_GetError());
+	}
+};
+
+Blaze::PPU::~PPU() {
+	SDL_DestroyRenderer(_renderer);
+	SDL_DestroyRenderer(_backbufferRenderer);
+	SDL_FreeSurface(_renderSurface);
+	SDL_FreeSurface(_renderBackbuffer);
 };

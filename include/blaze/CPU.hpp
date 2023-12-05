@@ -565,7 +565,16 @@ namespace Blaze {
 			Word operator^(Word rhs) const;
 		};
 
+		struct InterruptInfo {
+			Address pc;
+			Byte processorStatus;
+			Word sp;
+		};
+
 		mutable std::recursive_mutex stateMutex;
+
+		// this is not essential for CPU functionality; this is just used for debugging.
+		std::vector<InterruptInfo> _interruptStack;
 
 		Byte e = 1; //emulation mode. separate from p register flags
 

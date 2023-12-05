@@ -3,8 +3,11 @@
 #include <blaze/MMIO.hpp>
 #include <blaze/util.hpp>
 
+#include <SDL.h>
+
 #include <mutex>
 #include <array>
+#include <functional>
 
 namespace Blaze {
 	struct Bus;
@@ -148,6 +151,14 @@ namespace Blaze {
 
 		std::mutex _rdnmiMutex;
 
+		SDL_Renderer* _renderer = nullptr;
+		SDL_Renderer* _backbufferRenderer = nullptr;
+
+		mutable std::mutex _renderTextureMutex;
+		bool _swapped = true;
+		SDL_Surface* _renderSurface;
+		SDL_Surface* _renderBackbuffer;
+
 		inline Byte addressIncrementAmountInWords() const {
 			switch (_vmain & 3) {
 				case 0: return 1;
@@ -235,6 +246,15 @@ namespace Blaze {
 		};
 
 	public:
+		PPU();
+		~PPU() override;
+
+		// the PPU cannot be moved or copied
+		PPU(const PPU&) = delete;
+		PPU(PPU&) = delete;
+		PPU& operator=(PPU&&) = delete;
+		PPU& operator=(const PPU&) = delete;
+
 		Byte registerSize(Address offset, Byte attemptedAccessSize) override;
 		Address read(Address offset, Byte bitSize) override;
 		void write(Address offset, Byte bitSize, Address value) override;
@@ -246,6 +266,14 @@ namespace Blaze {
 
 		inline bool overscan() const {
 			return (_setini & (1 << 2)) != 0;
+		};
+
+		inline void renderSurface(std::function<void(SDL_Surface* surface)> renderer) {
+			std::unique_lock lock(_renderTextureMutex);
+			if (_swapped) {
+				_swapped = false;
+				renderer(_renderSurface);
+			}
 		};
 	};
 };

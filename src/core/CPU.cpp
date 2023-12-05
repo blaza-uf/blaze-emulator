@@ -131,6 +131,16 @@ void Blaze::CPU::irq() {
 	// If the interrupt is not masked
 	if (!getFlag(flags::i))
 	{
+		_interruptStack.push_back(InterruptInfo {
+			concat24(PBR, PC),
+			P,
+			SP,
+		});
+
+		if (_interruptStack.size() > 1) {
+			Blaze::printLine("cpu", "Entering an interrupt within another interrupt! Nested within " + std::to_string(_interruptStack.size()) + " interrupts.");
+		}
+
 		if (!usingEmulationMode()) {
 			// in native mode: push the PBR
 			store8(SP, PBR);
@@ -175,6 +185,16 @@ void Blaze::CPU::irq() {
 void Blaze::CPU::nmi() {
 	std::unique_lock lock(stateMutex);
 
+	_interruptStack.push_back(InterruptInfo {
+		concat24(PBR, PC),
+		P,
+		SP,
+	});
+
+	if (_interruptStack.size() > 1) {
+		Blaze::printLine("cpu", "Entering an interrupt within another interrupt! Nested within " + std::to_string(_interruptStack.size()) + " interrupts.");
+	}
+
 	if (!usingEmulationMode()) {
 		// in native mode: push the PBR
 		store8(SP, PBR);
@@ -213,6 +233,16 @@ void Blaze::CPU::nmi() {
 
 void Blaze::CPU::abort() {
 	std::unique_lock lock(stateMutex);
+
+	_interruptStack.push_back(InterruptInfo {
+		concat24(PBR, PC),
+		P,
+		SP,
+	});
+
+	if (_interruptStack.size() > 1) {
+		Blaze::printLine("cpu", "Entering an interrupt within another interrupt! Nested within " + std::to_string(_interruptStack.size()) + " interrupts.");
+	}
 
 	if (!usingEmulationMode()) {
 		store8(SP, PBR);
@@ -995,6 +1025,16 @@ Blaze::Cycles Blaze::CPU::invalidInstruction() {
 };
 
 Blaze::Cycles Blaze::CPU::executeBRK() {
+	_interruptStack.push_back(InterruptInfo {
+		concat24(PBR, PC),
+		P,
+		SP,
+	});
+
+	if (_interruptStack.size() > 1) {
+		Blaze::printLine("cpu", "Entering an interrupt within another interrupt! Nested within " + std::to_string(_interruptStack.size()) + " interrupts.");
+	}
+
 	if (!usingEmulationMode()) {
 		// in native mode: push the PBR
 		store8(SP, PBR);
@@ -1120,7 +1160,7 @@ Blaze::Cycles Blaze::CPU::executeMVN() {
 		X += 1;
 		Y += 1;
 		A.forceStoreFull(A.forceLoadFull() - 1);
-	} while (A.forceLoadFull() == 0xffff);
+	} while (A.forceLoadFull() != 0xffff);
 
 	return 0;
 };
@@ -1139,7 +1179,7 @@ Blaze::Cycles Blaze::CPU::executeMVP() {
 		X -= 1;
 		Y -= 1;
 		A.forceStoreFull(A.forceLoadFull() - 1);
-	} while (A.forceLoadFull() == 0xffff);
+	} while (A.forceLoadFull() != 0xffff);
 
 	return 0;
 };
@@ -1332,6 +1372,11 @@ Blaze::Cycles Blaze::CPU::executeRTI() {
 		SP++;
 		PBR = load8(SP);
 	}
+
+	if (!_interruptStack.empty()) {
+		_interruptStack.erase(_interruptStack.end() - 1);
+	}
+
 	return 0;
 };
 

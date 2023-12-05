@@ -42,9 +42,8 @@ add_library(blaze-core OBJECT
 
 target_include_directories(blaze-core PUBLIC
 	include
+	$<TARGET_PROPERTY:SDL2::SDL2-static,INTERFACE_INCLUDE_DIRECTORIES>
 )
-
-find_package(OpenGL REQUIRED COMPONENTS OpenGL)
 
 set(blaze_sources
 	src/gui/blaze.cpp
@@ -67,7 +66,7 @@ if(TARGET SDL2::SDL2main)
 	target_link_libraries(blaze PRIVATE SDL2::SDL2main)
 endif()
 
-target_link_libraries(blaze PRIVATE SDL2::SDL2-static OpenGL::GL)
+target_link_libraries(blaze PRIVATE SDL2::SDL2-static)
 
 add_executable(blaze-core-tests
 	test/color.cpp
