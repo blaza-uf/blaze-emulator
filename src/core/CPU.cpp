@@ -113,6 +113,7 @@ void Blaze::CPU::reset(BusInterface* theBus) {
 	Y.reset();
 	SP = 0x0100;
 	P = 0;
+	cycleCounter = 0;
 
 	setFlag(flags::d, false);
 
@@ -173,9 +174,6 @@ void Blaze::CPU::irq() {
 
 		// Read the interrupt program address from the interrupt table
 		PC = load16(usingEmulationMode() ? ExceptionVectorAddress::EmulatedIRQ : ExceptionVectorAddress::NativeIRQ);
-
-		// Handling IRQs takes 7 CPU cycles
-		cyclesCountDown = 7;
 	}
 
 	// we just received an interrupt, so we're no longer waiting for one
@@ -225,8 +223,6 @@ void Blaze::CPU::nmi() {
 
 	PC = load16(usingEmulationMode() ? ExceptionVectorAddress::EmulatedNMI : ExceptionVectorAddress::NativeNMI);
 
-	cyclesCountDown = 8;
-
 	// we just received an interrupt, so we're no longer waiting for one
 	waitingForInterrupt = false;
 }
@@ -268,8 +264,6 @@ void Blaze::CPU::abort() {
 	PBR = 0x00;
 
 	PC = load16(usingEmulationMode() ? ExceptionVectorAddress::EmulatedABORT : ExceptionVectorAddress::NativeABORT);
-
-	cyclesCountDown = 8;
 
 	// we just received an interrupt, so we're no longer waiting for one
 	waitingForInterrupt = false;
@@ -316,12 +310,7 @@ void Blaze::CPU::execute() {
 
 	// execute instruction with the info
 	info.cycles = executeInstruction(info);
-
-	// Count down cycles
-	while(info.cycles > 0)
-	{
-		--info.cycles;
-	}
+	cycleCounter += info.cycles;
 }
 
 void Blaze::CPU::setFlag(Byte flag, bool s) {
@@ -338,27 +327,27 @@ bool Blaze::CPU::getFlag(Byte f) const {
 	return (P & f) != 0;
 };
 
-Blaze::Byte Blaze::CPU::load8(Address address) const {
+Blaze::Byte Blaze::CPU::load8(Address address) {
 	return bus->read8(address);
 };
 
-Blaze::Word Blaze::CPU::load16(Address address) const {
+Blaze::Word Blaze::CPU::load16(Address address) {
 	return bus->read16(address);
 };
 
-Blaze::Address Blaze::CPU::load24(Address address) const {
+Blaze::Address Blaze::CPU::load24(Address address) {
 	return bus->read24(address);
 };
 
-Blaze::Byte Blaze::CPU::load8(Byte bank, Word addressLow) const {
+Blaze::Byte Blaze::CPU::load8(Byte bank, Word addressLow) {
 	return load8(concat24(bank, addressLow));
 };
 
-Blaze::Word Blaze::CPU::load16(Byte bank, Word addressLow) const {
+Blaze::Word Blaze::CPU::load16(Byte bank, Word addressLow) {
 	return load16(concat24(bank, addressLow));
 };
 
-Blaze::Address Blaze::CPU::load24(Byte bank, Word addressLow) const {
+Blaze::Address Blaze::CPU::load24(Byte bank, Word addressLow) {
 	return load24(concat24(bank, addressLow));
 };
 
@@ -389,7 +378,7 @@ void Blaze::CPU::store24(Byte bank, Word addressLow, Address value) {
 	return store24(concat24(bank, addressLow), value);
 };
 
-Blaze::Address Blaze::CPU::decodeAddress(AddressingMode mode) const {
+Blaze::Address Blaze::CPU::decodeAddress(AddressingMode mode) {
 	Address addressStart = executingPC + 1;
 
 	switch (mode) {
@@ -450,7 +439,7 @@ Blaze::Address Blaze::CPU::decodeAddress(AddressingMode mode) const {
 	}
 };
 
-Blaze::Word Blaze::CPU::loadOperand(AddressingMode addressingMode, bool use8BitOperand) const {
+Blaze::Word Blaze::CPU::loadOperand(AddressingMode addressingMode, bool use8BitOperand) {
 	Address operand = decodeAddress(addressingMode);
 	if (addressingMode == AddressingMode::Immediate) {
 		operand = use8BitOperand ? load8(executingPC + 1) : load16(executingPC + 1);
@@ -1035,6 +1024,8 @@ Blaze::Cycles Blaze::CPU::executeBRK() {
 		Blaze::printLine("cpu", "Entering an interrupt within another interrupt! Nested within " + std::to_string(_interruptStack.size()) + " interrupts.");
 	}
 
+	auto param = loadOperand(AddressingMode::Immediate, true);
+
 	if (!usingEmulationMode()) {
 		// in native mode: push the PBR
 		store8(SP, PBR);
@@ -1060,8 +1051,6 @@ Blaze::Cycles Blaze::CPU::executeBRK() {
 	PBR = 0;
 	PC = load16(usingEmulationMode() ? ExceptionVectorAddress::EmulatedIRQ : ExceptionVectorAddress::NativeBRK);
 
-	// Set cycles for BRK instruction
-	cyclesCountDown = 7;
 	return 0;
 };
 
@@ -1072,22 +1061,22 @@ Blaze::Cycles Blaze::CPU::executeBRL() {
 
 Blaze::Cycles Blaze::CPU::executeCLC() {
 	setFlag(flags::c, false);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeCLD() {
 	setFlag(flags::d, false);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeCLI() {
 	setFlag(flags::i, false);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeCLV() {
 	setFlag(flags::v, false);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeCOP() {
@@ -1096,31 +1085,31 @@ Blaze::Cycles Blaze::CPU::executeCOP() {
 	// this instruction is used to give commands to coprocessors located on the cartridge along with the game in the ROM.
 	// for now, we don't support this, so just ignore it.
 
-	return 0;
+	return 5 + (usingEmulationMode() ? 0 : 1);
 };
 
 Blaze::Cycles Blaze::CPU::executeDEX() {
 	X--;
 	setZeroNegFlags(X);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeDEY() {
 	Y--;
 	setZeroNegFlags(Y);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeINX() {
 	X++;
 	setZeroNegFlags(X);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeINY() {
 	Y++;
 	setZeroNegFlags(Y);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeJML() {
@@ -1160,6 +1149,10 @@ Blaze::Cycles Blaze::CPU::executeMVN() {
 		X += 1;
 		Y += 1;
 		A.forceStoreFull(A.forceLoadFull() - 1);
+
+		// each byte transferred takes 7 cycles;
+		// subtract the ones from the load and store above and you get 5
+		cycleCounter += 5;
 	} while (A.forceLoadFull() != 0xffff);
 
 	return 0;
@@ -1179,13 +1172,17 @@ Blaze::Cycles Blaze::CPU::executeMVP() {
 		X -= 1;
 		Y -= 1;
 		A.forceStoreFull(A.forceLoadFull() - 1);
+
+		// each byte transferred takes 7 cycles;
+		// subtract the ones from the load and store above and you get 5
+		cycleCounter += 5;
 	} while (A.forceLoadFull() != 0xffff);
 
 	return 0;
 };
 
 Blaze::Cycles Blaze::CPU::executeNOP() {
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executePEA() {
@@ -1220,13 +1217,13 @@ Blaze::Cycles Blaze::CPU::executePHA() {
 		store16(SP, A.forceLoadFull());
 	}
 	SP--;
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executePHB() {
 	store8(SP, DBR);
 	SP--;
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executePHD() {
@@ -1237,19 +1234,19 @@ Blaze::Cycles Blaze::CPU::executePHD() {
 		store16(SP, DR);
 	}
 	SP--;
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executePHK() {
 	store8(SP, PBR);
 	SP--;
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executePHP() {
 	store8(SP, P);
 	SP--;
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executePHX() {
@@ -1261,7 +1258,7 @@ Blaze::Cycles Blaze::CPU::executePHX() {
 		store16(SP, X.forceLoadFull());
 	}
 	SP--;
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executePHY() {
@@ -1273,7 +1270,7 @@ Blaze::Cycles Blaze::CPU::executePHY() {
 		store16(SP, Y.forceLoadFull());
 	}
 	SP--;
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executePLA() {
@@ -1286,7 +1283,7 @@ Blaze::Cycles Blaze::CPU::executePLA() {
 		SP++;
 	}
 	setZeroNegFlags(A);
-	return 0;
+	return 2;
 };
 
 Blaze::Cycles Blaze::CPU::executePLB() {
@@ -1294,7 +1291,7 @@ Blaze::Cycles Blaze::CPU::executePLB() {
 	DBR = load8(SP);
 	setFlag(flags::n, msb8(DBR));
 	setFlag(flags::z, (DBR == 0));
-	return 0;
+	return 2;
 };
 
 Blaze::Cycles Blaze::CPU::executePLD() {
@@ -1308,7 +1305,7 @@ Blaze::Cycles Blaze::CPU::executePLD() {
 		setFlag(flags::n, msb16(DR));
 	}
 	setFlag(flags::z, (DR == 0));
-	return 0;
+	return 2;
 };
 
 Blaze::Cycles Blaze::CPU::executePLP() {
@@ -1318,7 +1315,7 @@ Blaze::Cycles Blaze::CPU::executePLP() {
 		setFlag(flags::x, true);
 		setFlag(flags::m, true);
 	}
-	return 0;
+	return 2;
 };
 
 Blaze::Cycles Blaze::CPU::executePLX() {
@@ -1331,7 +1328,7 @@ Blaze::Cycles Blaze::CPU::executePLX() {
 		SP++;
 	}
 	setZeroNegFlags(X);
-	return 0;
+	return 2;
 };
 
 Blaze::Cycles Blaze::CPU::executePLY() {
@@ -1344,7 +1341,7 @@ Blaze::Cycles Blaze::CPU::executePLY() {
 		SP++;
 	}
 	setZeroNegFlags(Y);
-	return 0;
+	return 2;
 };
 
 Blaze::Cycles Blaze::CPU::executeREP() {
@@ -1354,7 +1351,7 @@ Blaze::Cycles Blaze::CPU::executeREP() {
 		setFlag(flags::x, true);
 		setFlag(flags::m, true);
 	}
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeRTI() {
@@ -1377,7 +1374,7 @@ Blaze::Cycles Blaze::CPU::executeRTI() {
 		_interruptStack.erase(_interruptStack.end() - 1);
 	}
 
-	return 0;
+	return 2;
 };
 
 Blaze::Cycles Blaze::CPU::executeRTL() {
@@ -1392,7 +1389,7 @@ Blaze::Cycles Blaze::CPU::executeRTL() {
 	Blaze::printLine("cpu", "Returning from subroutine to " + valueToHexString(PC, 6, "$"));
 #endif
 
-	return 0;
+	return 2;
 };
 
 Blaze::Cycles Blaze::CPU::executeRTS() {
@@ -1407,28 +1404,28 @@ Blaze::Cycles Blaze::CPU::executeRTS() {
 	Blaze::printLine("cpu", "Returning from subroutine to " + valueToHexString(PC, 6, "$"));
 #endif
 
-	return 0;
+	return 3;
 };
 
 Blaze::Cycles Blaze::CPU::executeSEC() {
 	setFlag(flags::c, true);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeSED() {
 	setFlag(flags::d, true);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeSEI() {
 	setFlag(flags::i, true);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeSEP() {
 	Word val = loadOperand(AddressingMode::Immediate, true);
 	P |= val;
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeSTP() {
@@ -1439,13 +1436,13 @@ Blaze::Cycles Blaze::CPU::executeSTP() {
 Blaze::Cycles Blaze::CPU::executeTAX() {
 	X = A.forceLoadFull();
 	setZeroNegFlags(X);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeTAY() {
 	Y = A.forceLoadFull();
 	setZeroNegFlags(Y);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeTCD() {
@@ -1456,7 +1453,7 @@ Blaze::Cycles Blaze::CPU::executeTCD() {
 		setFlag(flags::n, msb16(DR));
 	}
 	setFlag(flags::z, (DR == 0));
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeTCS() {
@@ -1464,31 +1461,31 @@ Blaze::Cycles Blaze::CPU::executeTCS() {
 	if (SP == 0x4200) {
 		throw std::runtime_error("invalid stack address");
 	}
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeTDC() {
 	A.forceStoreFull(DR);
 	setZeroNegFlags(A);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeTSC() {
 	A.forceStoreFull(SP);
 	setZeroNegFlags(A);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeTSX() {
 	X = SP;
 	setZeroNegFlags(X);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeTXA() {
 	A = X.load();
 	setZeroNegFlags(A);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeTXS() {
@@ -1500,30 +1497,30 @@ Blaze::Cycles Blaze::CPU::executeTXS() {
 			throw std::runtime_error("invalid stack address");
 		}
 	}
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeTXY() {
 	Y = X.load();
 	setZeroNegFlags(Y);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeTYA() {
 	A = Y.load();
 	setZeroNegFlags(A);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeTYX() {
 	X = Y.load();
 	setZeroNegFlags(X);
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeWAI() {
 	waitingForInterrupt = true;
-	return 0;
+	return 2;
 };
 
 Blaze::Cycles Blaze::CPU::executeWDM() {
@@ -1554,7 +1551,7 @@ Blaze::Cycles Blaze::CPU::executeXBA() {
 	// Store in A
 	A.forceStoreFull(lowMask | highMask);
 
-	return 0;
+	return 2;
 };
 
 Blaze::Cycles Blaze::CPU::executeXCE() {
@@ -1578,7 +1575,7 @@ Blaze::Cycles Blaze::CPU::executeXCE() {
 		SP = lo8(SP) | 0x0100;
 	}
 
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeADC(AddressingMode mode) {
@@ -1636,7 +1633,7 @@ Blaze::Cycles Blaze::CPU::executeASL(AddressingMode mode) {
 	setFlag(flags::z, val == 0);
 	setFlag(flags::n, msb(val, memoryAndAccumulatorAre8Bit()));
 
-	return 0;
+	return (mode == AddressingMode::DirectIndexedX || mode == AddressingMode::AbsoluteIndexedX) ? 2 : 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeBIT(AddressingMode mode) {
@@ -1654,22 +1651,31 @@ Blaze::Cycles Blaze::CPU::executeBIT(AddressingMode mode) {
 
 Blaze::Cycles Blaze::CPU::executeCMP(AddressingMode mode) {
 	// TEMPORARY HACK (trying to get Super Mario World to boot)
+#if 0
+	Word val = loadOperand(mode, memoryAndAccumulatorAre8Bit());
+#else
+	Address fullAddr = decodeAddress(mode);
+	Word val;
+	if (mode == AddressingMode::Immediate) {
+		val = memoryAndAccumulatorAre8Bit() ? load8(executingPC + 1) : load16(executingPC + 1);
+	} else {
+		val = memoryAndAccumulatorAre8Bit() ? load8(fullAddr) : load16(fullAddr);
+	}
+
 	{
-		auto fullAddr = decodeAddress(mode);
 		Byte bank;
 		Word addr;
 		split24(fullAddr, bank, addr);
 		if (bank >= 0x00 && bank <= 0x3f && addr == 0x2140) {
 			// report that anything it expects to find the in APU port 0 is correct
-			loadOperand(mode, memoryAndAccumulatorAre8Bit());
 			setFlag(flags::z, true);
 			setFlag(flags::c, true);
 			setFlag(flags::n, false);
 			return 0;
 		}
 	}
+#endif
 
-	Word val = loadOperand(mode, memoryAndAccumulatorAre8Bit());
 	Word temp = A.load() - val;
 	setFlag(flags::z, (A == val));
 	setFlag(flags::c, (A >= val));
@@ -1713,7 +1719,7 @@ Blaze::Cycles Blaze::CPU::executeDEC(AddressingMode mode) {
 	}
 	setFlag(flags::n, msb(val, memoryAndAccumulatorAre8Bit()));
 	setFlag(flags::z, (val == 0));
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeEOR(AddressingMode mode) {
@@ -1741,7 +1747,7 @@ Blaze::Cycles Blaze::CPU::executeINC(AddressingMode mode) {
 	}
 	setFlag(flags::n, msb(val, memoryAndAccumulatorAre8Bit()));
 	setFlag(flags::z, (val == 0));
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeJMP(AddressingMode mode) {
@@ -1765,7 +1771,7 @@ Blaze::Cycles Blaze::CPU::executeJSR(AddressingMode mode) {
 
 	PC = newPC;
 
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeLDA(AddressingMode mode) {
@@ -1791,10 +1797,12 @@ Blaze::Cycles Blaze::CPU::executeLDY(AddressingMode mode) {
 
 Blaze::Cycles Blaze::CPU::executeLSR(AddressingMode mode) {
 	Address addr = decodeAddress(mode);
-	Word data = memoryAndAccumulatorAre8Bit() ? load8(addr) : load16(addr);
+	Word data;
 
 	if (mode == AddressingMode::Accumulator) {
 		data = A.load();
+	} else {
+		data = memoryAndAccumulatorAre8Bit() ? load8(addr) : load16(addr);
 	}
 
 	setFlag(flags::c, (data & 0x01) != 0);
@@ -1809,7 +1817,7 @@ Blaze::Cycles Blaze::CPU::executeLSR(AddressingMode mode) {
 		store16(addr, data);
 	}
 
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeORA(AddressingMode mode) {
@@ -1821,11 +1829,13 @@ Blaze::Cycles Blaze::CPU::executeORA(AddressingMode mode) {
 
 Blaze::Cycles Blaze::CPU::executeROL(AddressingMode mode) {
 	Address addr = decodeAddress(mode);
-	Word data = memoryAndAccumulatorAre8Bit() ? load8(addr) : load16(addr);
+	Word data;
 	Byte carry = getCarry();
 
 	if (mode == AddressingMode::Accumulator) {
 		data = A.load();
+	} else {
+		data = memoryAndAccumulatorAre8Bit() ? load8(addr) : load16(addr);
 	}
 
 	//set c to most significant bit of data
@@ -1840,16 +1850,18 @@ Blaze::Cycles Blaze::CPU::executeROL(AddressingMode mode) {
 	} else {
 		store16(addr, data);
 	}
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeROR(AddressingMode mode) {
 	Address addr = decodeAddress(mode);
-	Word data = memoryAndAccumulatorAre8Bit() ? load8(addr) : load16(addr);
+	Word data;
 	Byte carry = getCarry();
 
 	if (mode == AddressingMode::Accumulator) {
 		data = A.load();
+	} else {
+		data = memoryAndAccumulatorAre8Bit() ? load8(addr) : load16(addr);
 	}
 
 	setFlag(flags::c, (data & 0x01) != 0);
@@ -1863,7 +1875,7 @@ Blaze::Cycles Blaze::CPU::executeROR(AddressingMode mode) {
 	} else {
 		store16(addr, data);
 	}
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeSBC(AddressingMode mode) {
@@ -1954,7 +1966,7 @@ Blaze::Cycles Blaze::CPU::executeTRB(AddressingMode mode) {
 		val &= ~A.load();
 		store16(addr, val);
 	}
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeTSB(AddressingMode mode) {
@@ -1972,7 +1984,7 @@ Blaze::Cycles Blaze::CPU::executeTSB(AddressingMode mode) {
 		val |= A.load();
 		store16(addr, val);
 	}
-	return 0;
+	return 1;
 };
 
 Blaze::Cycles Blaze::CPU::executeBRA(ConditionCode condition, bool passConditionIfBitSet) {
@@ -1985,6 +1997,7 @@ Blaze::Cycles Blaze::CPU::executeBRA(ConditionCode condition, bool passCondition
 	if (condition == ConditionCode::NONE) {
 		// update PC
 		PC = newPC;
+		cycleCounter += 1;
 	} else {
 		// Check the correct bit based on 
 		switch (condition) {
@@ -2004,8 +2017,10 @@ Blaze::Cycles Blaze::CPU::executeBRA(ConditionCode condition, bool passCondition
 		if ((bitIsSet && passConditionIfBitSet) || (!bitIsSet && !passConditionIfBitSet)) {
 			// update PC
 			PC = newPC;
+			cycleCounter += 1;
 		}
 	}
 
-	return 0;
+	// no, this is not a typo; for some reason, this instruction group takes longer under emulation mode
+	return usingEmulationMode() ? 1 : 0;
 };

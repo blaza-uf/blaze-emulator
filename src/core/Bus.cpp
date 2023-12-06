@@ -75,30 +75,36 @@ namespace Blaze
     //=== Writing to the bus ===
     void Bus::write(Address addr, Byte data)
     {
+		cpu.cycleCounter += 1;
 		write(addr, 8, data);
     }
     void Bus::write(Address addr, Word data)
     {
+		cpu.cycleCounter += 2;
 		write(addr, 16, data);
     }
     void Bus::write(Address addr, Address data)
     {
+		cpu.cycleCounter += 3;
 		write(addr, 24, data);
     }
 
     //=== Reading from the bus ===
     Byte Bus::read8(Address addr)
     {
+		cpu.cycleCounter += 1;
 		return read(addr, 8);
     }
 
     Word Bus::read16(Address addr)
     {
+		cpu.cycleCounter += 2;
 		return read(addr, 16);
     }
 
     Address Bus::read24(Address addr)
     {
+		cpu.cycleCounter += 3;
 		return read(addr, 24);
     }
 

@@ -598,12 +598,14 @@ namespace Blaze {
 
 		std::function<void(char)> putCharacterHook = nullptr;
 
-		Byte load8(Address address) const;
-		Byte load8(Byte bank, Word addressLow) const;
-		Word load16(Address address) const;
-		Word load16(Byte bank, Word addressLow) const;
-		Address load24(Address address) const;
-		Address load24(Byte bank, Word addressLow) const;
+		uint64_t cycleCounter = 0;
+
+		Byte load8(Address address);
+		Byte load8(Byte bank, Word addressLow);
+		Word load16(Address address);
+		Word load16(Byte bank, Word addressLow);
+		Address load24(Address address);
+		Address load24(Byte bank, Word addressLow);
 
 		void store8(Address address, Byte value);
 		void store8(Byte bank, Word addressLow, Byte value);
@@ -614,12 +616,12 @@ namespace Blaze {
 
 		// this function is meant to be called by instruction execution functions to obtain the address
 		// of the operand with the given addressing mode.
-		Address decodeAddress(AddressingMode addressingMode) const;
+		Address decodeAddress(AddressingMode addressingMode);
 
 		// this function is meant to be used by simple instructions that only need to load data from the
 		// memory operands (which is true for most instructions). if you need to both read from and write to
 		// a memory operand, you should use `decodeAddress` + `load16` instead.
-		Word loadOperand(AddressingMode addressingMode, bool use8BitOperand) const;
+		Word loadOperand(AddressingMode addressingMode, bool use8BitOperand);
 
 		// decodes the current instruction based on the given opcode, returning the decoded instruction information
 		static Instruction decodeInstruction(Byte inst0, bool memoryAndAccumulatorAre8Bit, bool indexRegistersAre8Bit);
@@ -730,8 +732,6 @@ namespace Blaze {
 		void write(Address addr, Byte data);	// Write to the Bus
 
 		// Interrupt Handling
-		Cycles cyclesCountDown = 0;					// Counts how many cycles the instruction has remaining
-		ClockTicks clockCount = 0;					// A global accumulation of the number of clocks
 		void irq();
 		void nmi();
 		void abort();
