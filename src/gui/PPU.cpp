@@ -570,6 +570,10 @@ void Blaze::PPU::beginVBlank() {
 		_renderer = _backbufferRenderer;
 		_backbufferRenderer = tmp;
 
+		auto tmp2 = _renderSurface;
+		_renderSurface = _renderBackbuffer;
+		_renderBackbuffer = tmp2;
+
 		_swapped = true;
 	}
 
@@ -600,7 +604,7 @@ void Blaze::PPU::endVBlank() {
 
 	// note that we render from back to front
 
-	Blaze::printLine("ppu", "Ended vblank; rendering in mode " + std::to_string(backgroundMode()));
+	//Blaze::printLine("ppu", "Ended vblank; rendering in mode " + std::to_string(backgroundMode()));
 
 	switch (backgroundMode()) {
 		case 0:
@@ -826,7 +830,7 @@ void Blaze::PPU::Background::render(SDL_Renderer* renderer, const Word* vram, co
 		return;
 	}
 
-	Blaze::printLine("ppu", "Rendering BG" + std::to_string(backgroundIndex + 1) + " layer");
+	//Blaze::printLine("ppu", "Rendering BG" + std::to_string(backgroundIndex + 1) + " layer");
 
 	std::vector<Color> palette;
 	size_t subpaletteSize = 0;
@@ -960,7 +964,7 @@ void Blaze::PPU::Background::render(SDL_Renderer* renderer, const Word* vram, co
 
 					SDL_DestroyTexture(tileTexture);
 
-					Blaze::printLine("ppu", "rendered visible tile from " + std::to_string(chrBaseWordAddress() + (entry.tileIndex * tileFormatWordSize(tileFormat))) + " at " + std::to_string(leftMinus) + ", " + std::to_string(topMinus) + " of " + std::to_string(renderedWidth) + ", " + std::to_string(renderedHeight));
+					//Blaze::printLine("ppu", "rendered visible tile from " + std::to_string(chrBaseWordAddress() + (entry.tileIndex * tileFormatWordSize(tileFormat))) + " at " + std::to_string(leftMinus) + ", " + std::to_string(topMinus) + " of " + std::to_string(renderedWidth) + ", " + std::to_string(renderedHeight));
 				}
 			}
 		}
@@ -974,7 +978,7 @@ void Blaze::PPU::renderSpriteLayer(Byte priority) {
 		return;
 	}
 
-	Blaze::printLine("ppu", "Rendering S" + std::to_string(priority) + " layer");
+	//Blaze::printLine("ppu", "Rendering S" + std::to_string(priority) + " layer");
 
 	Word firstPage = nameBaseWordAddress();
 	Word secondPage = firstPage + nameSelectWordOffset();
@@ -1076,6 +1080,6 @@ void Blaze::PPU::renderSpriteLayer(Byte priority) {
 
 		SDL_DestroyTexture(spriteTexture);
 
-		Blaze::printLine("ppu", "rendered visible sprite from " + std::to_string(page + (sprite.tileIndex * tileFormatWordSize(TileFormat::_4bpp))) + " at " + std::to_string(leftMinus) + ", " + std::to_string(topMinus) + " of " + std::to_string(renderedWidth) + ", " + std::to_string(renderedHeight) + " (" + std::to_string(width) + ", " + std::to_string(height) + ")");
+		//Blaze::printLine("ppu", "rendered visible sprite from " + std::to_string(page + (sprite.tileIndex * tileFormatWordSize(TileFormat::_4bpp))) + " at " + std::to_string(leftMinus) + ", " + std::to_string(topMinus) + " of " + std::to_string(renderedWidth) + ", " + std::to_string(renderedHeight) + " (" + std::to_string(width) + ", " + std::to_string(height) + ")");
 	}
 };
