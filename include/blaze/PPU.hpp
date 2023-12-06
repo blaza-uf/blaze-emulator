@@ -2,6 +2,7 @@
 
 #include <blaze/MMIO.hpp>
 #include <blaze/util.hpp>
+#include <blaze/color.hpp>
 
 #include <mutex>
 #include <array>
@@ -19,7 +20,7 @@ namespace Blaze {
 
 	// note that anything labeled "word address" means it's an address where each increment is a word (16 bits), not a byte.
 	class PPU: public MMIODevice {
-	private:
+	public:
 		enum class AddressRemapping: Byte {
 			NoRemap = 0,
 			_2bpp   = 1,
@@ -50,6 +51,21 @@ namespace Blaze {
 			_16x32And32x32 = 7,
 		};
 
+		static constexpr std::pair<Byte, Byte> spriteSizeForType(SpriteSize type, bool large) {
+			switch (type) {
+				case SpriteSize::_8x8And16x16:   return large ? std::make_pair<Byte, Byte>( 8,  8) : std::make_pair<Byte, Byte>(16, 16);
+				case SpriteSize::_8x8And32x32:   return large ? std::make_pair<Byte, Byte>( 8,  8) : std::make_pair<Byte, Byte>(32, 32);
+				case SpriteSize::_8x8And64x64:   return large ? std::make_pair<Byte, Byte>( 8,  8) : std::make_pair<Byte, Byte>(64, 64);
+				case SpriteSize::_16x16And32x32: return large ? std::make_pair<Byte, Byte>(16, 16) : std::make_pair<Byte, Byte>(32, 32);
+				case SpriteSize::_16x16And64x64: return large ? std::make_pair<Byte, Byte>(16, 16) : std::make_pair<Byte, Byte>(64, 64);
+				case SpriteSize::_32x32And64x64: return large ? std::make_pair<Byte, Byte>(32, 32) : std::make_pair<Byte, Byte>(64, 64);
+				case SpriteSize::_16x32And32x64: return large ? std::make_pair<Byte, Byte>(16, 32) : std::make_pair<Byte, Byte>(32, 64);
+				case SpriteSize::_16x32And32x32: return large ? std::make_pair<Byte, Byte>(16, 32) : std::make_pair<Byte, Byte>(32, 32);
+				default:
+					return std::make_pair<Byte, Byte>(0, 0);
+			}
+		};
+
 		enum class ColorRegion: Byte {
 			NoRegions = 0,
 			OutsideWindow = 1,
@@ -62,6 +78,59 @@ namespace Blaze {
 			Subscreen = true,
 		};
 
+		enum class TileFormat: Byte {
+			INVALID = 0,
+			_2bpp,
+			_4bpp,
+			_8bpp,
+			_8bppDirect,
+			Mode7,
+			Mode7Direct,
+		};
+
+		static constexpr Byte tileFormatWordSize(const TileFormat format) {
+			switch (format) {
+				case TileFormat::_2bpp:       return  8;
+				case TileFormat::_4bpp:       return 16;
+				case TileFormat::_8bpp:
+				case TileFormat::_8bppDirect: return 32;
+				case TileFormat::Mode7:
+				case TileFormat::Mode7Direct: return 64;
+				default:                      return  0;
+			}
+		};
+
+		static constexpr Byte tileFormatPixelBitPlanes(const TileFormat format) {
+			switch (format) {
+				case TileFormat::_2bpp:       return 2;
+				case TileFormat::_4bpp:       return 4;
+				case TileFormat::_8bpp:
+				case TileFormat::_8bppDirect: return 8;
+				default:                      return 0;
+			}
+		};
+
+		struct Sprite {
+			int16_t x;
+			Byte y;
+			Byte tileIndex;
+			Byte paletteGroup;
+			Byte priority;
+			bool large: 1;
+			bool secondTilePage: 1;
+			bool flipVertically: 1;
+			bool flipHorizontally: 1;
+		};
+
+		struct TilemapEntry {
+			Word tileIndex;
+			Byte paletteGroup;
+			bool highPriority: 1;
+			bool flipVertically: 1;
+			bool flipHorizontally: 1;
+		};
+
+	private:
 		struct Background {
 			Byte tilemapAddressAndSize = 0;
 			Byte nba = 0;
@@ -97,6 +166,7 @@ namespace Blaze {
 			};
 
 			void reset();
+			void render(SDL_Renderer* renderer, const Word* vram, const Word* cgram, bool highPriority, Byte backgroundIndex, const PPU& ppu);
 		};
 
 		Bus* _bus = nullptr;
@@ -161,6 +231,9 @@ namespace Blaze {
 		SDL_Surface* _renderSurface;
 		SDL_Surface* _renderBackbuffer;
 
+		void renderSpriteLayer(Byte priority);
+
+	public:
 		inline Byte addressIncrementAmountInWords() const {
 			switch (_vmain & 3) {
 				case 0: return 1;
@@ -247,7 +320,6 @@ namespace Blaze {
 			return (_cgwsel & (1 << 0)) != 0;
 		};
 
-	public:
 		PPU();
 		~PPU() override;
 
@@ -277,5 +349,10 @@ namespace Blaze {
 				renderer(_renderSurface);
 			}
 		};
+
+		static std::vector<Byte> readTile(const Word* vram, Word vramWordAddress, Byte width, Byte height, TileFormat format);
+		static Color readColor(const Word* cgram, Byte index);
+		static Sprite readSprite(const Byte* oam, Byte index);
+		static TilemapEntry readTilemapEntry(const Word* vram, Word tilemapBaseWordAddress, Byte x, Byte y);
 	};
 };
