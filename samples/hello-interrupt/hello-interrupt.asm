@@ -19,13 +19,20 @@ main:
 	lda #$01ff
 	tcs
 
-	ldx #hello_world_string
+	ldx #hello_before_interrupt_string
+	jsr print_string
+
+	brk #0
+
+	ldx #hello_after_interrupt_string
 	jsr print_string
 
 	jmp hang
 
 ; input: string address in X register
 ; must be in native mode with 16-bit index registers
+;
+; modifies the accumulator (A) and the X index register
 print_string:
 	.init:
 		; save processor status
@@ -56,8 +63,22 @@ print_string:
 		; return to caller
 		rts
 
-native_cop:
 native_brk:
+	; save the registers that are modified by `print_string`
+	pha
+	phx
+
+	ldx #hello_from_interrupt_string
+	jsr print_string
+
+	; restore the registers we saved
+	plx
+	pla
+
+	; return from the interrupt
+	rti
+
+native_cop:
 native_abort:
 native_nmi:
 native_irq:
@@ -70,9 +91,15 @@ emu_irq_brk:
 hang:
 	jmp hang
 
-hello_world_string:
+hello_before_interrupt_string:
 	; $0A = newline
-	db "Hello, world!", $0A, 0
+	db "Hello, there! No interrupts yet...", $0A, 0
+
+hello_after_interrupt_string:
+	db "Hello, again. An interrupt occurred above, right?", $0A, 0
+
+hello_from_interrupt_string:
+	db "Hello from the interrupt handler!", $0A, 0
 
 rom_header:
 	org $00ffc0

@@ -10,7 +10,15 @@
 #include <string>
 #include <sstream>
 #include <blaze/Bus.hpp>
-#include <SDL_ttf.h>
+#include <blaze/util.hpp>
+#include <thread>
+#include <mutex>
+#include <blaze/PPU.hpp>
+#include <blaze/APU.hpp>
+#include <blaze/debug.hpp>
+#include <shared_mutex>
+#include <condition_variable>
+#include <chrono>
 
 // Define SNES key constants
 #define SNES_KEY_UP      0
@@ -28,14 +36,27 @@
 
 #ifdef _WIN32
 	#include <windows.h>
+	#include <windowsx.h>
 	#include <shobjidl.h>
 #endif // _WIN32
+
+using namespace std::chrono_literals;
 
 namespace Blaze {
 	static constexpr int defaultWindowWidth         = 800;
 	static constexpr int defaultWindowHeight        = 600;
 	static constexpr const char* defaultWindowTitle = "Blaze";
 	static constexpr Color defaultWindowColor { 0, 0, 0 };
+	static constexpr int snesWidth = 256;
+	static constexpr int snesHeight = 224;
+	static constexpr auto snesMasterClock = std::chrono::duration_cast<std::chrono::milliseconds>(1s) / 21447000;
+	static constexpr auto snesFrameTime = snesMasterClock * 357368;
+	static constexpr auto snesScanlineMasterClockCycles = 1364;
+	static constexpr auto snesScanlineTime = snesMasterClock * snesScanlineMasterClockCycles;
+	static constexpr auto snesVblankFirstScanline = 225;
+	static constexpr auto snesVblankFirstScanlineOverscan = 240;
+	static constexpr auto snesScanlines = 262;
+	static constexpr size_t maxConsoleChars = 5000;
 
 #ifdef _WIN32
 	enum MenuID: UINT_PTR {
@@ -45,9 +66,98 @@ namespace Blaze {
 		EditOptions = 4,
 		ViewShowDebugger = 5,
 		HelpHelp = 6,
+		EditContinuousExecution = 7,
+		ViewShowDebugConsole = 8,
+
+		DebuggerTextView = 100,
+		DebuggerContinue = 101,
+		DebuggerPause = 102,
+		DebuggerNext = 103,
+		DebuggerInto = 104,
+		DebuggerRegisterView = 105,
+		DebuggerBreakpointAddressInput = 106,
+
+		DebugConsoleTextView = 200,
 	};
+
+	static constexpr LPCSTR debuggerWindowClassName = TEXT("Blaze Debugger Window Class");
+	static constexpr int defaultDebuggerWindowWidth = 400;
+	static constexpr int defaultDebuggerWindowHeight = 600;
+	static constexpr int debuggerButtonAreaHeight = 26;
+	static constexpr int debuggerButtonY = 3;
+	static constexpr int debuggerButtonHeight = 20;
+	static constexpr int debuggerButtonXMargin = 5;
+	static constexpr int debuggerButtonYMargin = 3;
+	static constexpr int debuggerRegisterViewHeight = 180;
+	static constexpr int debuggerBreakpointAddressInputHeight = 20;
+
+	static constexpr LPCSTR debugConsoleWindowClassName = TEXT("Blaze Debug Console Window Class");
+	static constexpr int defaultDebugConsoleWindowWidth = 400;
+	static constexpr int defaultDebugConsoleWindowHeight = 600;
+
+	static WNDCLASS debuggerWindowClass = {};
+	static HMENU editMenu = nullptr;
+	static WNDCLASS debugConsoleWindowClass = {};
+
+	#define NEWLINE "\r\n"
+#else
+	#define NEWLINE "\n"
 #endif // _WIN32
+
+	static bool continuousExecution = true;
+	static std::shared_mutex continuousExecutionMutex;
+	static std::condition_variable_any continuousExecutionCondVar;
+	static Bus bus;
+	static Address breakpoint = UINT32_MAX;
+	static bool romLoaded = false;
+	static std::condition_variable_any romLoadedCondVar;
+	static std::shared_mutex romLoadedMutex;
+	static bool running = true;
 } // namespace Blaze
+
+static void updateBreakpoint(Blaze::Address address, bool shouldUpdateTextField = true);
+
+static void normalizeNewlines(std::string& string) {
+	for (size_t idx = string.find('\n'); idx != std::string::npos; idx = string.find('\n', idx)) {
+		string.replace(idx, 1, NEWLINE);
+		idx += sizeof(NEWLINE) - 1; // skip over the newly added string
+	}
+};
+
+static bool getContinuousExecution() {
+	std::shared_lock lock(Blaze::continuousExecutionMutex);
+	return Blaze::continuousExecution;
+};
+
+static void waitForContinuousExecution() {
+	std::shared_lock lock(Blaze::continuousExecutionMutex);
+
+	Blaze::continuousExecutionCondVar.wait(lock, []() {
+		return Blaze::continuousExecution || !Blaze::running;
+	});
+};
+
+static bool getRomLoaded() {
+	std::shared_lock lock(Blaze::romLoadedMutex);
+	return Blaze::romLoaded;
+};
+
+static void setRomLoaded(bool romLoaded) {
+	{
+		std::unique_lock lock(Blaze::romLoadedMutex);
+		Blaze::romLoaded = romLoaded;
+	}
+
+	Blaze::romLoadedCondVar.notify_all();
+};
+
+static void waitForRomLoad() {
+	std::shared_lock lock(Blaze::romLoadedMutex);
+
+	Blaze::romLoadedCondVar.wait(lock, []() {
+		return Blaze::romLoaded || !Blaze::running;
+	});
+};
 
 // Function to map SDL keycodes to SNES keys
 int mapSDLToSNES(SDL_Keycode sdlKey) {
@@ -83,13 +193,80 @@ int mapSDLToSNES(SDL_Keycode sdlKey) {
 }
 
 #ifdef _WIN32
+static void setContinuousExecution(bool continuousExecution) {
+	{
+		std::unique_lock lock(Blaze::continuousExecutionMutex);
+
+		Blaze::continuousExecution = continuousExecution;
+		MENUITEMINFO info = {};
+
+		info.cbSize = sizeof(info);
+		info.fMask = MIIM_STATE;
+		info.fState = continuousExecution ? MFS_CHECKED : MFS_UNCHECKED;
+
+		SetMenuItemInfo(Blaze::editMenu, Blaze::MenuID::EditContinuousExecution, FALSE, &info);
+	}
+
+	Blaze::continuousExecutionCondVar.notify_all();
+};
+
+static std::string utf16ToUTF8(const std::wstring& contents) {
+	std::string narrowContents;
+	int requiredChars = 0;
+	int writtenChars = 0;
+
+	if (!contents.empty()) {
+		requiredChars = WideCharToMultiByte(CP_UTF8, 0, contents.c_str(), contents.size(), nullptr, 0, nullptr, nullptr);
+		if (requiredChars == 0) {
+			throw std::runtime_error("Invalid UTF-8 string");
+		}
+
+		narrowContents.resize(requiredChars);
+
+		writtenChars = WideCharToMultiByte(CP_UTF8, 0, contents.c_str(), contents.size(), narrowContents.data(), requiredChars, nullptr, nullptr);
+
+		narrowContents.resize(writtenChars);
+
+		// trim off null characters
+		while (!narrowContents.empty() && narrowContents[narrowContents.size() - 1] == '\0') {
+			narrowContents.resize(narrowContents.size() - 1);
+		}
+	}
+
+	return narrowContents;
+};
+
+static std::wstring utf8ToUTF16(const std::string& contents) {
+	std::wstring wideContents;
+	int requiredChars = 0;
+	int writtenChars = 0;
+
+	if (!contents.empty()) {
+		requiredChars = MultiByteToWideChar(CP_UTF8, 0, contents.c_str(), (int)contents.size(), nullptr, 0);
+		if (requiredChars == 0) {
+			throw std::runtime_error("Invalid UTF-8 string");
+		}
+
+		wideContents.resize(requiredChars);
+
+		writtenChars = MultiByteToWideChar(CP_UTF8, 0, contents.c_str(), (int)contents.size(), wideContents.data(), requiredChars);
+
+		wideContents.resize(writtenChars);
+
+		// trim off null characters
+		while (!wideContents.empty() && wideContents[wideContents.size() - 1] == '\0') {
+			wideContents.resize(wideContents.size() - 1);
+		}
+	}
+
+	return wideContents;
+};
+
 static bool openROMDialog(std::string& outPath) {
 	HRESULT hr;
 	IFileDialog* fileDialog = nullptr;
 	IShellItem* item = nullptr;
 	LPWSTR filePath = nullptr;
-	int requiredChars = 0;
-	int writtenChars = 0;
 
 	hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 	if (!SUCCEEDED(hr)) {
@@ -124,79 +301,541 @@ static bool openROMDialog(std::string& outPath) {
 		return false;
 	}
 
-	requiredChars = WideCharToMultiByte(CP_UTF8, 0, filePath, -1, nullptr, 0, nullptr, nullptr);
-	if (requiredChars == 0) {
+	try {
+		outPath = utf16ToUTF8(filePath);
+	} catch (...) {
 		CoTaskMemFree(filePath);
 		item->Release();
 		fileDialog->Release();
 		CoUninitialize();
-		return false;
-	}
-
-	outPath.resize(requiredChars);
-
-	writtenChars = WideCharToMultiByte(CP_UTF8, 0, filePath, -1, outPath.data(), requiredChars, nullptr, nullptr);
-	if (writtenChars == 0) {
-		CoTaskMemFree(filePath);
-		item->Release();
-		fileDialog->Release();
-		CoUninitialize();
-		return false;
-	}
-
-	outPath.resize(writtenChars);
-
-	CoTaskMemFree(filePath);
-	item->Release();
-	fileDialog->Release();
-	CoUninitialize();
-
-	// trim off null characters
-	while (!outPath.empty() && outPath[outPath.size() - 1] == '\0') {
-		outPath.resize(outPath.size() - 1);
+		std::rethrow_exception(std::current_exception());
 	}
 
 	return true;
 };
+
+static LPCSTR fontFace = nullptr;
+
+static HWND win32DebuggerTextWindow = nullptr;
+static HWND win32DebuggerRegWindow = nullptr;
+static HWND win32DebugConsoleTextWindow = nullptr;
+static HWND win32BreakpointAddressInput = nullptr;
+
+static void updateBreakpoint(Blaze::Address address, bool shouldUpdateTextField) {
+	Blaze::breakpoint = address;
+
+	if (!shouldUpdateTextField) {
+		return;
+	}
+
+	if (Blaze::breakpoint == UINT32_MAX) {
+		Edit_SetText(win32BreakpointAddressInput, TEXT(""));
+	} else {
+		auto contents = Blaze::valueToHexString(address, 6);
+
+#if defined(UNICODE)
+		Edit_SetText(win32BreakpointAddressInput, utf8ToUTF16(contents).c_str());
+#else
+		Edit_SetText(win32BreakpointAddressInput, contents.c_str());
+#endif
+	}
+};
+
+static void updateDisassembly() {
+	std::string contents;
+	std::string regContents;
+	std::vector<Blaze::CPU::DisassembledInstruction> disassembledInstructions;
+	Blaze::Address PC;
+
+	if (win32DebuggerTextWindow == nullptr || win32DebuggerRegWindow == nullptr) {
+		return;
+	}
+
+	if (!getRomLoaded()) {
+		contents = "No ROM loaded";
+		regContents = "No ROM loaded";
+	} else if (getContinuousExecution()) {
+		contents = "Can't display disassembly while CPU is running";
+		regContents = "Can't display registers while CPU is running";
+	} else {
+		PC = Blaze::concat24(Blaze::bus.cpu.PBR, Blaze::bus.cpu.PC);
+
+		disassembledInstructions = Blaze::CPU::disassemble(Blaze::bus, PC, 10, Blaze::bus.cpu.memoryAndAccumulatorAre8Bit(), Blaze::bus.cpu.indexRegistersAre8Bit(), Blaze::bus.cpu.usingEmulationMode(), Blaze::bus.cpu.getFlag(Blaze::CPU::flags::c));
+
+		if (disassembledInstructions.empty()) {
+			contents = "Failed to disassemble memory at " + Blaze::valueToHexString(PC, 6, "$");
+		} else {
+			contents = "   ADDR  | CODE\n ------- | ----\n";
+			for (const auto& disassembledInstruction: disassembledInstructions) {
+				contents += " " + Blaze::valueToHexString(disassembledInstruction.address, 6, "$") + " | ";
+				contents += disassembledInstruction.code + "\n";
+			}
+
+			// remove the final newline
+			contents.erase(contents.end() - 1);
+		}
+
+		regContents = Blaze::bus.cpu.usingEmulationMode() ? "emulation mode\n" : "native mode\n";
+		regContents += "P = ";
+
+	#define DISASSEMBLY_P_CHECK(_name) \
+		if ((Blaze::bus.cpu.P & Blaze::CPU::flags::_name) != 0) { \
+			regContents += #_name; \
+		} else { \
+			regContents += '-'; \
+		}
+
+		DISASSEMBLY_P_CHECK(n);
+		DISASSEMBLY_P_CHECK(v);
+		DISASSEMBLY_P_CHECK(m);
+		DISASSEMBLY_P_CHECK(x);
+		DISASSEMBLY_P_CHECK(d);
+		DISASSEMBLY_P_CHECK(i);
+		DISASSEMBLY_P_CHECK(z);
+		DISASSEMBLY_P_CHECK(c);
+
+	#undef DISASSEMBLY_P_CHECK
+
+		regContents += '\n';
+
+		regContents += "PBR = " + Blaze::valueToHexString(Blaze::bus.cpu.PBR, 2, "$") + "   DBR = " + Blaze::valueToHexString(Blaze::bus.cpu.DBR, 2, "$") + "\n";
+		regContents += "DR  = " + Blaze::valueToHexString(Blaze::bus.cpu.DR, 4, "$") + " SP  = " + Blaze::valueToHexString(Blaze::bus.cpu.SP, 4, "$") + "\n";
+		regContents += "PC  = " + Blaze::valueToHexString(Blaze::bus.cpu.PC, 4, "$") + "\n";
+		regContents += '\n';
+
+		regContents += "A   = " + Blaze::valueToHexString(Blaze::bus.cpu.A.forceLoadFull(), 4, "$") + "\n";
+		regContents += "X   = " + Blaze::valueToHexString(Blaze::bus.cpu.X.forceLoadFull(), 4, "$") + " Y   = " + Blaze::valueToHexString(Blaze::bus.cpu.Y.forceLoadFull(), 4, "$") + "\n";
+	}
+
+	normalizeNewlines(contents);
+	normalizeNewlines(regContents);
+
+#if defined(UNICODE)
+	Edit_SetText(win32DebuggerTextWindow, utf8ToUTF16(contents).c_str());
+#else
+	Edit_SetText(win32DebuggerTextWindow, contents.c_str());
 #endif
 
-static int createText(const std::string& text, const SDL_Color& color, TTF_Font* font, SDL_Renderer* renderer, SDL_Texture*& outTexture, int& outWidth, int& outHeight) {
-	SDL_Surface* tmpSurface = TTF_RenderUTF8_Solid_Wrapped(font, text.c_str(), color, 0);
-	if (!tmpSurface) {
-		return -1;
+#if defined(UNICODE)
+	Edit_SetText(win32DebuggerRegWindow, utf8ToUTF16(regContents).c_str());
+#else
+	Edit_SetText(win32DebuggerRegWindow, regContents.c_str());
+#endif
+};
+
+static WNDPROC originalEditWindowProc = nullptr;
+
+static LRESULT CALLBACK breakpointAddressInputWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	if (uMsg == WM_CHAR) {
+		// only allow hex digits and delete and backspace
+		if (!(
+			(wParam >= '0' && wParam <= '9') ||
+			(wParam >= 'a' && wParam <= 'f') ||
+			(wParam >= 'A' && wParam <= 'F') || 
+			wParam == VK_DELETE ||
+			wParam == VK_BACK
+		)) {
+			return 0;
+		}
 	}
 
-	outTexture = SDL_CreateTextureFromSurface(renderer, tmpSurface);
-	if (!outTexture) {
-		SDL_FreeSurface(tmpSurface);
-		return -1;
+	return CallWindowProc(originalEditWindowProc, hwnd, uMsg, wParam, lParam);
+};
+
+static LRESULT CALLBACK debuggerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	static HWND continueButton;
+	static HWND pauseButton;
+	static HWND nextButton;
+	static HWND intoButton;
+
+	switch (uMsg) {
+		case WM_CLOSE:
+			ShowWindow(hwnd, SW_HIDE);
+			return 0;
+
+		case WM_CREATE: {
+			auto hInst = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+			HFONT hFont = nullptr;
+
+			hFont = CreateFont(0, 0, 0, 0, FW_DONTCARE, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, fontFace);
+
+			win32DebuggerTextWindow = CreateWindowEx(0, TEXT("Edit"), nullptr, WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_HSCROLL | ES_LEFT | ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_READONLY, 0, Blaze::debuggerButtonAreaHeight, 0, 0, hwnd, (HMENU)Blaze::MenuID::DebuggerTextView, hInst, nullptr);
+			if (!win32DebuggerTextWindow) {
+				abort();
+			}
+
+			SetWindowFont(win32DebuggerTextWindow, hFont, FALSE);
+
+			win32DebuggerRegWindow = CreateWindowEx(0, TEXT("Edit"), nullptr, WS_CHILD | WS_VISIBLE | ES_LEFT | ES_MULTILINE | ES_READONLY, 0, 0, 0, 0, hwnd, (HMENU)Blaze::MenuID::DebuggerRegisterView, hInst, nullptr);
+			if (!win32DebuggerRegWindow) {
+				abort();
+			}
+
+			SetWindowFont(win32DebuggerRegWindow, hFont, FALSE);
+
+			win32BreakpointAddressInput = CreateWindowEx(0, TEXT("Edit"), nullptr, WS_CHILD | WS_VISIBLE | ES_LEFT, 0, 0, 0, 0, hwnd, (HMENU)Blaze::MenuID::DebuggerBreakpointAddressInput, hInst, nullptr);
+			if (!win32BreakpointAddressInput) {
+				abort();
+			}
+
+			originalEditWindowProc = reinterpret_cast<WNDPROC>(SetWindowLongPtr(win32BreakpointAddressInput, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(breakpointAddressInputWindowProc)));
+
+			SetWindowFont(win32BreakpointAddressInput, hFont, FALSE);
+
+			// limit the breakpoint address input to 6 characters (for 6 address digits)
+			PostMessage(win32BreakpointAddressInput, EM_SETLIMITTEXT, 6, 0);
+
+			PostMessage(win32BreakpointAddressInput, EM_SETCUEBANNER, TRUE, reinterpret_cast<LPARAM>(TEXT("Breakpoint address")));
+
+			continueButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Continue"), WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 0, Blaze::debuggerButtonY, 0, Blaze::debuggerButtonHeight, hwnd, (HMENU)Blaze::MenuID::DebuggerContinue, hInst, nullptr);
+			pauseButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Pause"), WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 0, Blaze::debuggerButtonY, 0, Blaze::debuggerButtonHeight, hwnd, (HMENU)Blaze::MenuID::DebuggerPause, hInst, nullptr);
+			nextButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Next"), WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 0, Blaze::debuggerButtonY, 0, Blaze::debuggerButtonHeight, hwnd, (HMENU)Blaze::MenuID::DebuggerNext, hInst, nullptr);
+			intoButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Step Into"), WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 0, Blaze::debuggerButtonY, 0, Blaze::debuggerButtonHeight, hwnd, (HMENU)Blaze::MenuID::DebuggerInto, hInst, nullptr);
+
+			updateDisassembly();
+
+			return 0;
+		}
+
+		case WM_SIZE: {
+			auto width = LOWORD(lParam);
+			auto height = HIWORD(lParam);
+
+			auto buttonWidth = (std::max<decltype(width)>(width, Blaze::debuggerButtonXMargin * 5) - (Blaze::debuggerButtonXMargin * 5)) / 4;
+
+			MoveWindow(win32DebuggerTextWindow, 0, Blaze::debuggerButtonAreaHeight, width, ((height - Blaze::debuggerButtonAreaHeight) - Blaze::debuggerRegisterViewHeight) - Blaze::debuggerBreakpointAddressInputHeight, TRUE);
+			MoveWindow(win32DebuggerRegWindow, 0, (height - Blaze::debuggerRegisterViewHeight) - Blaze::debuggerBreakpointAddressInputHeight, width, Blaze::debuggerRegisterViewHeight, TRUE);
+			MoveWindow(win32BreakpointAddressInput, 0, height - Blaze::debuggerBreakpointAddressInputHeight, width, Blaze::debuggerBreakpointAddressInputHeight, TRUE);
+			MoveWindow(continueButton, Blaze::debuggerButtonXMargin * 1 + buttonWidth * 0, Blaze::debuggerButtonY, buttonWidth, Blaze::debuggerButtonHeight, TRUE);
+			MoveWindow(pauseButton, Blaze::debuggerButtonXMargin * 2 + buttonWidth * 1, Blaze::debuggerButtonY, buttonWidth, Blaze::debuggerButtonHeight, TRUE);
+			MoveWindow(nextButton, Blaze::debuggerButtonXMargin * 3  + buttonWidth * 2, Blaze::debuggerButtonY, buttonWidth, Blaze::debuggerButtonHeight, TRUE);
+			MoveWindow(intoButton, Blaze::debuggerButtonXMargin * 4  + buttonWidth * 3, Blaze::debuggerButtonY, buttonWidth, Blaze::debuggerButtonHeight, TRUE);
+			return 0;
+		}
+
+		case WM_COMMAND: {
+			switch (LOWORD(wParam)) {
+				case Blaze::DebuggerContinue:
+					if (HIWORD(wParam) == BN_CLICKED) {
+						setContinuousExecution(true);
+						updateDisassembly();
+					}
+					break;
+				case Blaze::DebuggerPause:
+					if (HIWORD(wParam) == BN_CLICKED) {
+						setContinuousExecution(false);
+						updateDisassembly();
+					}
+					break;
+				case Blaze::DebuggerNext:
+					if (HIWORD(wParam) == BN_CLICKED && !getContinuousExecution()) {
+						Blaze::Address PC = Blaze::concat24(Blaze::bus.cpu.PBR, Blaze::bus.cpu.PC);
+						Blaze::CPU::Instruction instrInfo = Blaze::CPU::decodeInstruction(Blaze::bus.read8(PC), Blaze::bus.cpu.memoryAndAccumulatorAre8Bit(), Blaze::bus.cpu.indexRegistersAre8Bit());
+						if (instrInfo.opcode == Blaze::CPU::Opcode::JSR || instrInfo.opcode == Blaze::CPU::Opcode::JSL) {
+							// these are subroutine execution instructions; clicking "next" is not supposed to go into them (that's what "step into" is for)
+							//
+							// instead, let's set a breakpoint and continue execution
+							updateBreakpoint(PC + instrInfo.size);
+							setContinuousExecution(true);
+							updateDisassembly();
+						} else {
+							Blaze::bus.cpu.execute();
+							updateDisassembly();
+						}
+					}
+					break;
+				case Blaze::DebuggerInto:
+					if (HIWORD(wParam) == BN_CLICKED && !getContinuousExecution()) {
+						Blaze::bus.cpu.execute();
+						updateDisassembly();
+					}
+					break;
+
+				case Blaze::DebuggerBreakpointAddressInput:
+					if (HIWORD(wParam) == EN_CHANGE) {
+#if defined(UNICODE)
+						std::wstring origContents;
+#else
+						std::string origContents;
+#endif
+
+						origContents.resize(Edit_GetTextLength(win32BreakpointAddressInput) + 1);
+
+						Edit_GetText(win32BreakpointAddressInput, origContents.data(), origContents.size());
+
+						// discard the null terminator
+						origContents.resize(origContents.size() - 1);
+
+#if defined(UNICODE)
+						auto contents = utf16ToUTF8(origContents);
+#else
+						auto& contents = origContents;
+#endif
+
+						if (contents.empty()) {
+							updateBreakpoint(UINT32_MAX, false);
+						} else {
+							updateBreakpoint(std::stoul(contents, nullptr, 16), false);
+						}
+					}
+					break;
+			}
+
+			return 0;
+		}
+
+		case WM_PAINT: {
+			PAINTSTRUCT ps;
+			HDC hdc = BeginPaint(hwnd, &ps);
+
+			FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
+
+			EndPaint(hwnd, &ps);
+
+			return 0;
+		}
+
+		case WM_KEYDOWN: {
+			if (wParam == VK_F5) {
+				// F5 -> continue
+				PostMessage(hwnd, WM_COMMAND, MAKELONG(Blaze::DebuggerContinue, BN_CLICKED), 0);
+				return 0;
+			} else if (wParam == VK_F6) {
+				// F6 -> pause
+				PostMessage(hwnd, WM_COMMAND, MAKELONG(Blaze::DebuggerPause, BN_CLICKED), 0);
+				return 0;
+			} else if (wParam == VK_F11) {
+				// F11 -> step into
+				PostMessage(hwnd, WM_COMMAND, MAKELONG(Blaze::DebuggerInto, BN_CLICKED), 0);
+				return 0;
+			} else {
+				return DefWindowProc(hwnd, uMsg, wParam, lParam);
+			}
+		}
+
+		case WM_SYSKEYDOWN: {
+			if (wParam == VK_F10) {
+				// F10 -> next
+				PostMessage(hwnd, WM_COMMAND, MAKELONG(Blaze::DebuggerNext, BN_CLICKED), 0);
+				return 0;
+			} else {
+				return DefWindowProc(hwnd, uMsg, wParam, lParam);
+			}
+		}
+
+		default:
+			return DefWindowProc(hwnd, uMsg, wParam, lParam);
+	}
+};
+
+static std::mutex pendingConsoleContentsMutex;
+static std::string pendingConsoleContents;
+
+static void updateConsole(const std::string& contents) {
+	std::unique_lock lock(pendingConsoleContentsMutex);
+	pendingConsoleContents = contents;
+};
+
+static LRESULT CALLBACK debugConsoleWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	switch (uMsg) {
+		case WM_CLOSE:
+			ShowWindow(hwnd, SW_HIDE);
+			return 0;
+
+		case WM_CREATE: {
+			auto hInst = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+			HFONT hFont = nullptr;
+
+			hFont = CreateFont(0, 0, 0, 0, FW_DONTCARE, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, fontFace);
+
+			win32DebugConsoleTextWindow = CreateWindowEx(0, TEXT("Edit"), nullptr, WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_LEFT | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY, 0, 0, 0, 0, hwnd, (HMENU)Blaze::MenuID::DebugConsoleTextView, hInst, nullptr);
+			if (!win32DebugConsoleTextWindow) {
+				abort();
+			}
+
+			SetWindowFont(win32DebugConsoleTextWindow, hFont, FALSE);
+
+			updateConsole("");
+
+			return 0;
+		}
+
+		case WM_SIZE: {
+			auto width = LOWORD(lParam);
+			auto height = HIWORD(lParam);
+
+			MoveWindow(win32DebugConsoleTextWindow, 0, 0, width, height, TRUE);
+			return 0;
+		}
+
+		case WM_PAINT: {
+			PAINTSTRUCT ps;
+			HDC hdc = BeginPaint(hwnd, &ps);
+
+			FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
+
+			EndPaint(hwnd, &ps);
+
+			return 0;
+		}
+
+		default:
+			return DefWindowProc(hwnd, uMsg, wParam, lParam);
+	}
+};
+#else // !_WIN32
+static void updateBreakpoint(Blaze::Address address, bool shouldUpdateTextField) {
+	#warning TODO
+};
+
+static void updateDisassembly() {
+	#warning TODO
+};
+
+static void updateConsole(const std::string& contents) {
+	#warning TODO
+};
+
+static void setContinuousExecution(bool continuousExecution) {
+	{
+		std::unique_lock lock(Blaze::continuousExecutionMutex);
+		Blaze::continuousExecution = continuousExecution;
 	}
 
-	outWidth = tmpSurface->w;
-	outHeight = tmpSurface->h;
+	Blaze::continuousExecutionCondVar.notify_all();
+	#warning TODO
+};
+#endif
 
-	SDL_FreeSurface(tmpSurface);
+static void cpuThreadMain(SDL_Window* window) {
+	Blaze::Bus& bus = Blaze::bus;
+	auto totalScanlineTime = 0us;
+	auto& ppu = *dynamic_cast<Blaze::PPU*>(bus.ppu);
+	size_t scanline = 0;
+	size_t totalMasterClockCycles = 0;
 
-	return 0;
+	while (Blaze::running) {
+		if (Blaze::concat24(bus.cpu.PBR, bus.cpu.PC) == Blaze::breakpoint) {
+			updateBreakpoint(UINT32_MAX);
+			setContinuousExecution(false);
+			updateDisassembly();
+		}
+
+		waitForRomLoad();
+		waitForContinuousExecution();
+
+		if (!Blaze::running) {
+			break;
+		}
+
+		auto beginTime = std::chrono::steady_clock::now();
+		auto beginCycle = bus.cpu.cycleCounter;
+
+		{
+			std::shared_lock lock(Blaze::continuousExecutionMutex);
+
+			if (getRomLoaded() && Blaze::continuousExecution) {
+				// execute a single instruction
+				bus.cpu.execute();
+			}
+		}
+
+		auto endTime = std::chrono::steady_clock::now();
+		auto endCycle = bus.cpu.cycleCounter;
+
+		// don't increment clock cycles while in an interrupt
+		if (bus.cpu._interruptStack.empty()) {
+			totalScanlineTime += std::chrono::duration_cast<std::chrono::microseconds>(endTime - beginTime);
+			totalMasterClockCycles += (endCycle - beginCycle) * 64;
+		}
+
+		if (totalMasterClockCycles >= Blaze::snesScanlineMasterClockCycles) {
+			totalScanlineTime = 0us;
+			totalMasterClockCycles = 0;
+			++scanline;
+
+			if (scanline >= Blaze::snesScanlines) {
+				scanline = 0;
+			}
+		}
+
+		if (
+			(ppu.overscan() && scanline == Blaze::snesVblankFirstScanlineOverscan) ||
+			(!ppu.overscan() && scanline == Blaze::snesVblankFirstScanline)
+		) {
+			ppu.beginVBlank();
+		}
+
+		if (scanline == 0) {
+			ppu.endVBlank();
+		}
+	}
+};
+
+static std::string debugConsoleOutput;
+static std::mutex debugConsoleMutex;
+
+void Blaze::clear() {
+	std::unique_lock lock(debugConsoleMutex);
+	debugConsoleOutput = "";
+	updateConsole(debugConsoleOutput);
+};
+
+void Blaze::print(const std::string& subsystem, const std::string& message) {
+	std::unique_lock lock(debugConsoleMutex);
+	std::string copy = message;
+
+	normalizeNewlines(copy);
+
+#if _WIN32
+#if defined(UNICODE)
+	OutputDebugString(utf8ToUTF16(copy).c_str());
+#else
+	OutputDebugString(copy.c_str());
+#endif
+#else
+	printf("%s", copy.c_str());
+#endif
+
+	debugConsoleOutput += copy;
+
+	if (debugConsoleOutput.size() >= Blaze::maxConsoleChars) {
+		debugConsoleOutput.erase(debugConsoleOutput.begin(), debugConsoleOutput.end() - Blaze::maxConsoleChars);
+	}
+
+	updateConsole(debugConsoleOutput);
+};
+
+void Blaze::printLine(const std::string& subsystem, const std::string& message) {
+	Blaze::print(subsystem, message + '\n');
 };
 
 int main(int argc, char** argv) {
-	SDL_Window* mainWindow;
-	SDL_Renderer* renderer;
-	SDL_Surface* surface;
+	SDL_Window* mainWindow = nullptr;
 	SDL_Event event;
 	std::map<int, bool> keyboard;
-	bool running = true;
 	SDL_SysWMinfo mainWindowInfo;
-	Blaze::Bus bus;
-	TTF_Font* font = nullptr;
-	bool executing = false;
+	Blaze::Bus& bus = Blaze::bus;
+	bool holdingLeftControl = false;
+	bool holdingRightControl = false;
+	bool holdingLeftShift = false;
+	bool holdingRightShift = false;
+	SDL_Renderer* renderer = nullptr;
+	std::thread cpuThread;
+	Blaze::PPU ppu;
+	Blaze::APU apu;
+	SDL_Texture* renderTexture = nullptr;
+
+	bus.ppu = &ppu;
+	bus.apu = &apu;
 
 #ifdef _WIN32
 	HWND win32MainWindow = nullptr;
+	HWND win32DebuggerWindow = nullptr;
+	HWND win32DebugConsoleWindow = nullptr;
 	HMENU mainMenu = nullptr;
 	HMENU fileMenu = nullptr;
-	HMENU editMenu = nullptr;
+	HMENU& editMenu = Blaze::editMenu;
 	HMENU viewMenu = nullptr;
 	HMENU helpMenu = nullptr;
 #endif // _WIN32
@@ -206,35 +845,31 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-	if (TTF_Init() < 0) {
-		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to initialize SDL_ttf: %s", TTF_GetError());
-		return 1;
-	}
-
 #ifdef _WIN32
-	// TODO: fall back to other fonts
-	font = TTF_OpenFont("C:\\Windows\\Fonts\\FiraCode-Regular.ttf", 16);
+	DWORD fontFileAttrs = INVALID_FILE_ATTRIBUTES;
+
+	fontFileAttrs = GetFileAttributes(TEXT("C:\\Windows\\Fonts\\FiraCode-Regular.ttf"));
+	fontFace = TEXT("Fira Code");
 #else
 	#warning TODO
 #endif
-	if (!font) {
 #ifdef _WIN32
+	if (fontFileAttrs == INVALID_FILE_ATTRIBUTES || (fontFileAttrs & FILE_ATTRIBUTE_DIRECTORY) != 0) {
 		// try another font
-		font = TTF_OpenFont("C:\\Windows\\Fonts\\consola.ttf", 16);
-		if (!font) {
-#else
-		#warning TODO
-#endif
-			SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load font: %s", TTF_GetError());
+		fontFileAttrs = GetFileAttributes(TEXT("C:\\Windows\\Fonts\\consola.ttf"));
+		fontFace = TEXT("Consolas");
+		if (fontFileAttrs == INVALID_FILE_ATTRIBUTES || (fontFileAttrs & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+			SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load font");
 			return 1;
-#ifdef _WIN32
 		}
+	}
 #else
 		#warning TODO
 #endif
-	}
 
-	if (SDL_CreateWindowAndRenderer(Blaze::defaultWindowWidth, Blaze::defaultWindowHeight, SDL_WINDOW_RESIZABLE, &mainWindow, &renderer) < 0) {
+	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
+
+	if (SDL_CreateWindowAndRenderer(Blaze::defaultWindowWidth, Blaze::defaultWindowHeight, SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN, &mainWindow, &renderer) != 0) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create main window and renderer: %s", SDL_GetError());
 		SDL_Quit();
 		return 1;
@@ -245,7 +880,6 @@ int main(int argc, char** argv) {
 	SDL_VERSION(&mainWindowInfo.version);
 	if (!SDL_GetWindowWMInfo(mainWindow, &mainWindowInfo)) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to get window handle: %s", SDL_GetError());
-		SDL_DestroyRenderer(renderer);
 		SDL_DestroyWindow(mainWindow);
 		SDL_Quit();
 		return 1;
@@ -262,42 +896,92 @@ int main(int argc, char** argv) {
 		viewMenu = CreateMenu();
 		helpMenu = CreateMenu();
 
-		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)fileMenu, "File");
+		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)fileMenu, "&File");
 
-		AppendMenu(fileMenu, MF_STRING, Blaze::MenuID::FileOpen, "Open ROM");
-		AppendMenu(fileMenu, MF_STRING, Blaze::MenuID::FileClose, "Close ROM");
+		AppendMenu(fileMenu, MF_STRING, Blaze::MenuID::FileOpen, "&Open ROM\tCtrl+O");
+		AppendMenu(fileMenu, MF_STRING, Blaze::MenuID::FileClose, "&Close ROM\tCtrl+Shift+O");
 		AppendMenu(fileMenu, MF_STRING, Blaze::MenuID::FileExit, "Exit");
 
-		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)editMenu, "Edit");
+		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)editMenu, "&Edit");
 
-		AppendMenu(editMenu, MF_STRING, Blaze::MenuID::EditOptions, "Options");
+		AppendMenu(editMenu, MF_STRING, Blaze::MenuID::EditOptions, "&Options");
+		AppendMenu(editMenu, MF_STRING, Blaze::MenuID::EditContinuousExecution, "Continuous E&xecution\tCtrl+Shift+X");
 
-		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)viewMenu, "View");
+		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)viewMenu, "&View");
 
-		AppendMenu(viewMenu, MF_STRING, Blaze::MenuID::ViewShowDebugger, "Show Debugger");
+		AppendMenu(viewMenu, MF_STRING, Blaze::MenuID::ViewShowDebugger, "Show &Debugger\tCtrl+D");
+		AppendMenu(viewMenu, MF_STRING, Blaze::MenuID::ViewShowDebugConsole, "Show Debug &Console\tCtrl+Shift+C");
 
-		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)helpMenu, "Help");
+		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)helpMenu, "&Help");
 
-		AppendMenu(helpMenu, MF_STRING, Blaze::MenuID::HelpHelp, "Help");
+		AppendMenu(helpMenu, MF_STRING, Blaze::MenuID::HelpHelp, "&Help");
 
 		SetMenu(win32MainWindow, mainMenu);
 	}
 
 	// enable Win32 events in the SDL event loop
 	SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+
+	// set up the debugger window
+
+	Blaze::debuggerWindowClass.lpfnWndProc = debuggerWindowProc;
+	Blaze::debuggerWindowClass.hInstance = mainWindowInfo.info.win.hinstance;
+	Blaze::debuggerWindowClass.lpszClassName = Blaze::debuggerWindowClassName;
+
+	RegisterClass(&Blaze::debuggerWindowClass);
+
+	win32DebuggerWindow = CreateWindowEx(0, Blaze::debuggerWindowClassName, TEXT("Debugger Window"), WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, Blaze::defaultDebuggerWindowWidth, Blaze::defaultDebuggerWindowHeight, nullptr, nullptr, Blaze::debuggerWindowClass.hInstance, nullptr);
+	if (win32DebuggerWindow == nullptr) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create debugger window: %lu", GetLastError());
+		SDL_DestroyWindow(mainWindow);
+		SDL_Quit();
+		return 1;
+	}
+
+	// set up the debug console window
+
+	Blaze::debugConsoleWindowClass.lpfnWndProc = debugConsoleWindowProc;
+	Blaze::debugConsoleWindowClass.hInstance = mainWindowInfo.info.win.hinstance;
+	Blaze::debugConsoleWindowClass.lpszClassName = Blaze::debugConsoleWindowClassName;
+
+	RegisterClass(&Blaze::debugConsoleWindowClass);
+
+	win32DebugConsoleWindow = CreateWindowEx(0, Blaze::debugConsoleWindowClassName, TEXT("Debug Console"), WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, Blaze::defaultDebugConsoleWindowWidth, Blaze::defaultDebugConsoleWindowHeight, nullptr, nullptr, Blaze::debugConsoleWindowClass.hInstance, nullptr);
+	if (win32DebugConsoleWindow == nullptr) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create debugger window: %lu", GetLastError());
+		SDL_DestroyWindow(mainWindow);
+		SDL_Quit();
+		return 1;
+	}
 #endif // _WIN32
 
-	std::string debugBuffer;
+	setContinuousExecution(true);
+
 	bus.cpu.putCharacterHook = [&](char character) {
-		debugBuffer.push_back(character);
+		Blaze::print("user-code", std::string(1, character));
+	};
+
+	bus.invalidAccess = [&](Blaze::Address address, Blaze::Byte bitSize, bool forWrite, Blaze::Address valueWhenWriting) {
+		std::string output = "Invalid " + std::to_string(bitSize) + "-bit bus access to " + Blaze::valueToHexString(address, 6, "$") + " for ";
+		if (forWrite) {
+			output += "writing " + Blaze::valueToHexString(valueWhenWriting, 6, "$");
+		} else {
+			output += "reading";
+		}
+		Blaze::printLine("bus", output);
 	};
 
 	if (argc > 1) {
 		std::string path = argv[1];
 		std::stringstream output;
+		bool romSuccessfullyLoaded = false;
+
+		setRomLoaded(false);
 
 		output << "Got ROM: " << path;
 		output << '\n';
+
+		bus.rom.reset(&bus);
 
 		try {
 			bus.rom.load(path);
@@ -310,19 +994,35 @@ int main(int argc, char** argv) {
 				// when a ROM is loaded, we need to reset all components
 				bus.reset();
 
-				executing = true;
+				romSuccessfullyLoaded = true;
 			}
 		} catch (const std::runtime_error& e) {
 			output << "Failed to load ROM:\n" << e.what();
 		}
 
-		output << '\n';
+		Blaze::clear();
+		Blaze::printLine("rom", output.str());
 
-		debugBuffer = output.str();
+		setRomLoaded(romSuccessfullyLoaded);
+
+		updateDisassembly();
 	}
 
+	// set up a render texture for the PPU
+	renderTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, Blaze::snesWidth, Blaze::snesHeight);
+	if (renderTexture == nullptr) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create render texture: %s", SDL_GetError());
+	}
+
+	// create the CPU thread
+	cpuThread = std::thread(cpuThreadMain, mainWindow);
+
+	long windowWidth = 0;
+	long windowHeight = 0;
+
 	// main event loop
-	while (running) {
+	while (Blaze::running) {
+
 		// process all events for this frame
 		while (SDL_PollEvent(&event)) {
 			int snesKey;
@@ -330,15 +1030,96 @@ int main(int argc, char** argv) {
 			switch (event.type) {
 				case SDL_QUIT:
 					// exit if window closed
-					running = false;
+					Blaze::running = false;
+					Blaze::romLoadedCondVar.notify_all();
+					Blaze::continuousExecutionCondVar.notify_all();
 					break;
 
-				case SDL_KEYDOWN:
+				case SDL_KEYDOWN: {
+					bool holdingControl = false;
+					bool holdingShift = false;
+
+					switch (event.key.keysym.sym) {
+						case SDLK_LCTRL: holdingLeftControl = true; break;
+						case SDLK_RCTRL: holdingRightControl = true; break;
+						case SDLK_LSHIFT: holdingLeftShift = true; break;
+						case SDLK_RSHIFT: holdingRightShift = true; break;
+					}
+
 					snesKey = mapSDLToSNES(event.key.keysym.sym);
+					holdingControl = holdingLeftControl || holdingRightControl;
+					holdingShift = holdingLeftShift || holdingRightShift;
+
+					if (holdingControl && !holdingShift && event.key.keysym.sym == SDLK_o) {
+#if _WIN32
+						PostMessage(win32MainWindow, WM_COMMAND, static_cast<WPARAM>(Blaze::MenuID::FileOpen), 0);
+#else
+						#warning TODO
+#endif
+					} else if (holdingControl && holdingShift && event.key.keysym.sym == SDLK_o) {
+#if _WIN32
+						PostMessage(win32MainWindow, WM_COMMAND, static_cast<WPARAM>(Blaze::MenuID::FileClose), 0);
+#else
+						#warning TODO
+#endif
+					} else if (holdingControl && holdingShift && event.key.keysym.sym == SDLK_x) {
+#if _WIN32
+						PostMessage(win32MainWindow, WM_COMMAND, static_cast<WPARAM>(Blaze::MenuID::EditContinuousExecution), 0);
+#else
+						#warning TODO
+#endif
+					} else if (holdingControl && !holdingShift && event.key.keysym.sym == SDLK_d) {
+#if _WIN32
+						PostMessage(win32MainWindow, WM_COMMAND, static_cast<WPARAM>(Blaze::MenuID::ViewShowDebugger), 0);
+#else
+						#warning TODO
+#endif
+					} else if (holdingControl && holdingShift && event.key.keysym.sym == SDLK_c) {
+#if _WIN32
+						PostMessage(win32MainWindow, WM_COMMAND, static_cast<WPARAM>(Blaze::MenuID::ViewShowDebugConsole), 0);
+#else
+						#warning TODO
+#endif
+					} else if (event.key.keysym.sym == SDLK_F5) {
+						// F5 -> continue
+#if _WIN32
+						PostMessage(win32DebuggerWindow, WM_COMMAND, MAKELONG(Blaze::DebuggerContinue, BN_CLICKED), 0);
+#else
+						#warning TODO
+#endif
+					} else if (event.key.keysym.sym == SDLK_F6) {
+						// F6 -> pause
+#if _WIN32
+						PostMessage(win32DebuggerWindow, WM_COMMAND, MAKELONG(Blaze::DebuggerPause, BN_CLICKED), 0);
+#else
+						#warning TODO
+#endif
+					} else if (event.key.keysym.sym == SDLK_F10) {
+						// F10 -> next
+#if _WIN32
+						PostMessage(win32DebuggerWindow, WM_COMMAND, MAKELONG(Blaze::DebuggerNext, BN_CLICKED), 0);
+#else
+						#warning TODO
+#endif
+					} else if (event.key.keysym.sym == SDLK_F11) {
+						// F11 -> step into
+#if _WIN32
+						PostMessage(win32DebuggerWindow, WM_COMMAND, MAKELONG(Blaze::DebuggerInto, BN_CLICKED), 0);
+#else
+						#warning TODO
+#endif
+					}
+
 					// update emulator state
-					break;
+				} break;
 
 				case SDL_KEYUP:
+					switch (event.key.keysym.sym) {
+						case SDLK_LCTRL: holdingLeftControl = false; break;
+						case SDLK_RCTRL: holdingRightControl = false; break;
+						case SDLK_LSHIFT: holdingLeftShift = false; break;
+						case SDLK_RSHIFT: holdingRightShift = false; break;
+					}
 					snesKey = mapSDLToSNES(event.key.keysym.sym);
 					// update emulator state
 					break;
@@ -350,10 +1131,15 @@ int main(int argc, char** argv) {
 						case Blaze::MenuID::FileOpen: {
 							std::string path;
 							std::stringstream output;
+							bool romSuccessfullyLoaded = false;
+
+							setRomLoaded(false);
 
 							if (openROMDialog(path)) {
 								output << "Got ROM: " << path;
 								output << '\n';
+
+								bus.rom.reset(&bus);
 
 								try {
 									bus.rom.load(path);
@@ -366,7 +1152,7 @@ int main(int argc, char** argv) {
 										// when a ROM is loaded, we need to reset all components
 										bus.reset();
 
-										executing = true;
+										romSuccessfullyLoaded = true;
 									}
 								} catch (const std::runtime_error& e) {
 									output << "Failed to load ROM:\n" << e.what();
@@ -375,29 +1161,47 @@ int main(int argc, char** argv) {
 								output << "Failed to open ROM selection dialog";
 							}
 
-							output << '\n';
+							Blaze::clear();
+							Blaze::printLine("rom", output.str());
 
-							debugBuffer = output.str();
+							setRomLoaded(romSuccessfullyLoaded);
+
+							updateDisassembly();
 						} break;
 
 						case Blaze::MenuID::FileClose: {
+							setRomLoaded(false);
+
 							// when a ROM is unloaded, we need to reset all components
 							bus.reset();
 							bus.rom.reset(&bus); // we also reset the ROM
-							executing = false;
-							debugBuffer = "";
+
+							updateDisassembly();
+
+							Blaze::clear();
 						} break;
 
 						case Blaze::MenuID::FileExit: {
-							running = false;
+							Blaze::running = false;
+							Blaze::romLoadedCondVar.notify_all();
+							Blaze::continuousExecutionCondVar.notify_all();
 						} break;
 
 						case Blaze::MenuID::EditOptions: {
 							// TODO
 						} break;
 
+						case Blaze::MenuID::EditContinuousExecution: {
+							setContinuousExecution(!getContinuousExecution());
+							updateDisassembly();
+						} break;
+
 						case Blaze::MenuID::ViewShowDebugger: {
-							// TODO
+							ShowWindow(win32DebuggerWindow, SW_SHOW);
+						} break;
+
+						case Blaze::MenuID::ViewShowDebugConsole: {
+							ShowWindow(win32DebugConsoleWindow, SW_SHOW);
 						} break;
 
 						case Blaze::MenuID::HelpHelp: {
@@ -412,52 +1216,72 @@ int main(int argc, char** argv) {
 				break;
 #endif // _WIN32
 
+			case SDL_WINDOWEVENT: {
+				if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+					windowWidth = event.window.data1;
+					windowHeight = event.window.data2;
+				}
+			} break;
+
 			default:
 				break;
 			}
 		}
 
-		if (!running) {
+		if (!Blaze::running) {
 			break;
 		}
 
-		// clear the window
-		SDL_SetRenderDrawColor(renderer, Blaze::defaultWindowColor.r, Blaze::defaultWindowColor.g, Blaze::defaultWindowColor.b, Blaze::defaultWindowColor.a);
+#if _WIN32
+		{
+			std::unique_lock lock(pendingConsoleContentsMutex);
+			#if defined(UNICODE)
+				Edit_SetText(win32DebugConsoleTextWindow, utf8ToUTF16(pendingConsoleContents).c_str());
+			#else
+				Edit_SetText(win32DebugConsoleTextWindow, pendingConsoleContents.c_str());
+			#endif
+
+			auto lineCount = Edit_GetLineCount(win32DebugConsoleTextWindow);
+			SendMessage(win32DebugConsoleTextWindow, EM_LINESCROLL, 0, lineCount);
+		}
+#endif
+
+		// clear the display
+		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 		SDL_RenderClear(renderer);
 
-		if (executing) {
-			// execute a single instruction
-			bus.cpu.execute();
-		}
+		SDL_Rect rect {
+			0, 0,
+			Blaze::snesWidth, Blaze::snesHeight,
+		};
 
-		// render the debug buffer
-		if (!debugBuffer.empty()) {
-			SDL_Rect rect = {
-				0, 0,
-			};
-			SDL_Color color = {
-				// white
-				255, 255, 255,
-			};
-			SDL_Texture* texture = nullptr;
+		SDL_Rect windowRect {
+			0, 0,
+			static_cast<int>(windowWidth), static_cast<int>(windowHeight),
+		};
 
-			if (createText(debugBuffer, color, font, renderer, texture, rect.w, rect.h) < 0) {
-				SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create text texture: %s", SDL_GetError());
-				abort();
+		ppu.renderSurface([&](SDL_Surface* surface) {
+			SDL_Surface* destSurface = nullptr;
+			if (SDL_LockTextureToSurface(renderTexture, &rect, &destSurface) == 0) {
+				if (SDL_BlitSurface(surface, &rect, destSurface, &rect) != 0) {
+					SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to blit surface: %s", SDL_GetError());
+				}
+				SDL_UnlockTexture(renderTexture);
+			} else {
+				SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to lock texture: %s", SDL_GetError());
 			}
-			SDL_RenderCopy(renderer, texture, nullptr, &rect);
-			SDL_DestroyTexture(texture);
-		}
+		});
 
+		SDL_RenderCopy(renderer, renderTexture, &rect, &windowRect);
 		SDL_RenderPresent(renderer);
 	}
 
+	cpuThread.join();
+
 	SDL_DestroyRenderer(renderer);
+	SDL_DestroyTexture(renderTexture);
 	SDL_DestroyWindow(mainWindow);
 
-	TTF_CloseFont(font);
-
-	TTF_Quit();
 	SDL_Quit();
 
 	return 0;

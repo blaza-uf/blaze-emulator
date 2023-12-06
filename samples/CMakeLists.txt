@@ -20,3 +20,4 @@ function(add_rom_sample name source)
 endfunction()
 
 add_rom_sample(hello-world hello-world/hello-world.asm)
+add_rom_sample(hello-interrupt hello-interrupt/hello-interrupt.asm)

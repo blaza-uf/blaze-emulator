@@ -6,12 +6,15 @@
 #include <array>
 #include <unordered_map>
 #include <functional>
+#include <string>
+#include <mutex>
 
 namespace Blaze {
 	using ClockTicks = uint32_t;
 	using Cycles = uint32_t;
 
-	// Avoid circular inclusions by declaring Bus
+	// Avoid circular inclusions by declaring BusInterface and Bus
+	struct BusInterface;
 	struct Bus;
 
 	struct CPU {
@@ -61,6 +64,33 @@ namespace Blaze {
 
 			Last = StackRelativeIndirectIndexed,
 			INVALID = std::numeric_limits<uint8_t>::max(),
+		};
+
+		static constexpr std::array<const char*, static_cast<uint8_t>(AddressingMode::Last) + 1> ADDRESSING_MODE_NAMES = {
+			"Absolute",
+			"AbsoluteIndexedIndirect",
+			"AbsoluteIndexedX",
+			"AbsoluteIndexedY",
+			"AbsoluteIndirect",
+			"AbsoluteLongIndexedX",
+			"AbsoluteLong",
+			"Accumulator",
+			"BlockMove",
+			"DirectIndexedIndirect",
+			"DirectIndexedX",
+			"DirectIndexedY",
+			"DirectIndirectIndexed",
+			"DirectIndirectLongIndexed",
+			"DirectIndirectLong",
+			"DirectIndirect",
+			"Direct",
+			"Immediate",
+			"Implied",
+			"ProgramCounterRelativeLong",
+			"ProgramCounterRelative",
+			"Stack",
+			"StackRelative",
+			"StackRelativeIndirectIndexed",
 		};
 
 		static constexpr Byte instructionSizeWithAddressingMode(AddressingMode mode) {
@@ -294,6 +324,95 @@ namespace Blaze {
 			INVALID = std::numeric_limits<Byte>::max(),
 		};
 
+		static constexpr std::array<const char*, static_cast<Byte>(Opcode::BRA) + 1> OPCODE_NAMES = {
+			"BRK",
+			"BRL",
+			"CLC",
+			"CLD",
+			"CLI",
+			"CLV",
+			"COP",
+			"DEX",
+			"DEY",
+			"INX",
+			"INY",
+			"JML",
+			"JSL",
+			"MVN",
+			"MVP",
+			"NOP",
+			"PEA",
+			"PEI",
+			"PER",
+			"PHA",
+			"PHB",
+			"PHD",
+			"PHK",
+			"PHP",
+			"PHX",
+			"PHY",
+			"PLA",
+			"PLB",
+			"PLD",
+			"PLP",
+			"PLX",
+			"PLY",
+			"REP",
+			"RTI",
+			"RTL",
+			"RTS",
+			"SEC",
+			"SED",
+			"SEI",
+			"SEP",
+			"STP",
+			"TAX",
+			"TAY",
+			"TCD",
+			"TCS",
+			"TDC",
+			"TSC",
+			"TSX",
+			"TXA",
+			"TXS",
+			"TXY",
+			"TYA",
+			"TYX",
+			"WAI",
+			"WDM",
+			"XBA",
+			"XCE",
+
+			"ADC",
+			"AND",
+			"ASL",
+			"BIT",
+			"CMP",
+			"CPX",
+			"CPY",
+			"DEC",
+			"EOR",
+			"INC",
+			"JMP",
+			"JSR",
+			"LDA",
+			"LDX",
+			"LDY",
+			"LSR",
+			"ORA",
+			"ROL",
+			"ROR",
+			"SBC",
+			"STA",
+			"STX",
+			"STY",
+			"STZ",
+			"TRB",
+			"TSB",
+
+			"BRA",
+		};
+
 		// use enum within namespace instead of `enum class` because we *want* implicit conversion to an integer here
 		struct ExceptionVectorAddress {
 			enum IgnoreMe: Address {
@@ -370,6 +489,12 @@ namespace Blaze {
 			};
 		};
 
+		struct DisassembledInstruction {
+			Instruction information;
+			std::string code;
+			Address address;
+		};
+
 		static const std::unordered_map<Byte, Instruction> INSTRUCTIONS_WITH_NO_PATTERN;
 
 		struct flags {
@@ -440,34 +565,47 @@ namespace Blaze {
 			Word operator^(Word rhs) const;
 		};
 
+		struct InterruptInfo {
+			Address pc;
+			Byte processorStatus;
+			Word sp;
+		};
+
+		mutable std::recursive_mutex stateMutex;
+
+		// this is not essential for CPU functionality; this is just used for debugging.
+		std::vector<InterruptInfo> _interruptStack;
+
 		Byte e = 1; //emulation mode. separate from p register flags
 
 		Register A; // accumulator
-		Word DR; // direct
-		Word PC; // program counter
+		Word DR = 0; // direct
+		Word PC = 0; // program counter
 		Register X, Y; // index registers
-		Word SP; // stack pointer
-		Byte DBR; // data bank
-		Byte PBR; // program bank
-		Byte P; // process status
+		Word SP = 0x0100; // stack pointer
+		Byte DBR = 0; // data bank
+		Byte PBR = 0; // program bank
+		Byte P = flags::m | flags::x | flags::i | flags::c; // process status
 
 		// the full 24-bit address of the instruction that is *currently executing*
 		//
 		// this is NOT the same as the PC; the PC is automatically incremented to the next instruction
 		// BEFORE the current instruction starts executing.
-		Address executingPC;
+		Address executingPC = 0;
 
 		// System Bus
-		Bus *bus = nullptr;
+		BusInterface *bus = nullptr;
 
 		std::function<void(char)> putCharacterHook = nullptr;
 
-		Byte load8(Address address) const;
-		Byte load8(Byte bank, Word addressLow) const;
-		Word load16(Address address) const;
-		Word load16(Byte bank, Word addressLow) const;
-		Address load24(Address address) const;
-		Address load24(Byte bank, Word addressLow) const;
+		uint64_t cycleCounter = 0;
+
+		Byte load8(Address address);
+		Byte load8(Byte bank, Word addressLow);
+		Word load16(Address address);
+		Word load16(Byte bank, Word addressLow);
+		Address load24(Address address);
+		Address load24(Byte bank, Word addressLow);
 
 		void store8(Address address, Byte value);
 		void store8(Byte bank, Word addressLow, Byte value);
@@ -478,15 +616,16 @@ namespace Blaze {
 
 		// this function is meant to be called by instruction execution functions to obtain the address
 		// of the operand with the given addressing mode.
-		Address decodeAddress(AddressingMode addressingMode) const;
+		Address decodeAddress(AddressingMode addressingMode);
 
 		// this function is meant to be used by simple instructions that only need to load data from the
 		// memory operands (which is true for most instructions). if you need to both read from and write to
 		// a memory operand, you should use `decodeAddress` + `load16` instead.
-		Word loadOperand(AddressingMode addressingMode, bool use8BitImmediate) const;
+		Word loadOperand(AddressingMode addressingMode, bool use8BitOperand);
 
 		// decodes the current instruction based on the given opcode, returning the decoded instruction information
-		Instruction decodeInstruction(Byte inst0) const;
+		static Instruction decodeInstruction(Byte inst0, bool memoryAndAccumulatorAre8Bit, bool indexRegistersAre8Bit);
+		static std::vector<DisassembledInstruction> disassemble(Bus& bus, Address address, size_t instructionCount, bool memoryAndAccumulatorAre8BitOnStart, bool indexRegistersAre8BitOnStart, bool usingEmulationModeOnStart, bool carryOnStart);
 
 		// executes the current (pre-decoded) instruction with the given information
 		Cycles executeInstruction(const Instruction& info);
@@ -586,18 +725,19 @@ namespace Blaze {
 			Y(P, flags::x)
 			{};
 
-		void reset(Bus* theBus);      		// Reset CPU internal state
+		void reset(BusInterface* theBus);      		// Reset CPU internal state
 		void execute(); 		// Execute the current instruction
 		void clock();                    		// CPU driver
 		Byte read(Address addr);				// Read from the Bus
 		void write(Address addr, Byte data);	// Write to the Bus
 
 		// Interrupt Handling
-		Cycles cyclesCountDown = 0;					// Counts how many cycles the instruction has remaining
-		ClockTicks clockCount = 0;					// A global accumulation of the number of clocks
 		void irq();
 		void nmi();
 		void abort();
+
+		bool waitingForInterrupt = false;			// CPU is waiting for interrupt
+		bool stopped = false;						// CPU is stopped
 
 		bool getFlag(Byte f) const;
 		void setFlag(Byte f, bool s);
@@ -620,6 +760,7 @@ namespace Blaze {
 		};
 
 		bool usingEmulationMode() const {
+			std::unique_lock lock(stateMutex);
 			return e != 0;
 		};
 	};

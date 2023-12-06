@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <sstream>
+#include <iomanip>
+#include <stdexcept>
 
 namespace Blaze {
 	// NOLINTBEGIN(readability-magic-numbers, readability-identifier-length, bugprone-easily-swappable-parameters)
@@ -67,8 +69,15 @@ namespace Blaze {
 	};
 
 	template<typename T>
+	static constexpr T mid8(T value, bool shift) {
+		auto unshifted = value & static_cast<T>(0xff00);
+		return shift ? (unshifted >> 8) : unshifted;
+	};
+
+	template<typename T>
 	static constexpr T hi8(T value, bool shift) {
-		size_t typeBits = sizeof(T) * 8;
+		// treat types greater than 16 bits as 24-bit types (since the CPU can only handle up to 24 bit types)
+		size_t typeBits = (sizeof(value) > 2) ? 24 : (sizeof(T) * 8);
 		auto shiftBits = typeBits - 8;
 		auto unshifted = value & (static_cast<T>(0xff) << shiftBits);
 		return shift ? (unshifted >> shiftBits) : unshifted;
@@ -76,16 +85,50 @@ namespace Blaze {
 
 	template<typename T>
 	static constexpr T hi16(T value, bool shift) {
-		size_t typeBits = sizeof(T) * 8;
+		size_t typeBits = (sizeof(value) > 2) ? 24 : (sizeof(T) * 8);
 		auto shiftBits = typeBits - 16;
 		auto unshifted = value & (static_cast<T>(0xffff) << shiftBits);
 		return shift ? (unshifted >> shiftBits) : unshifted;
 	};
 
-	static std::string valueToHexString(uint32_t value) {
+	template<typename T>
+	static constexpr bool testBit(T value, uint8_t bitIndex) {
+		return value & (static_cast<T>(1) << bitIndex);
+	};
+
+	template<typename T>
+	static constexpr T getBit(uint8_t bitIndex, bool value) {
+		if (value) {
+			return static_cast<T>(1) << bitIndex;
+		} else {
+			return 0;
+		}
+	};
+
+	static std::string valueToHexString(uint32_t value, size_t padToLength = 0, std::string prefix = "") {
 		std::stringstream stream;
-		stream << std::hex << std::nouppercase << value;
+		stream << prefix << std::hex << std::nouppercase << std::setfill('0') << std::setw(padToLength) << value;
+		return stream.str();
+	};
+
+	static std::string valueToSignedHexString(int32_t value, size_t padToLength = 0, std::string prefix = "") {
+		std::stringstream stream;
+		if (value < 0) {
+			stream << "-";
+			value *= -1;
+		}
+		stream << prefix << std::hex << std::nouppercase << std::setfill('0') << std::setw(padToLength) << value;
 		return stream.str();
 	};
 	// NOLINTEND(readability-magic-numbers, readability-identifier-length, bugprone-easily-swappable-parameters)
+
+	[[noreturn]] static inline void unreachable() {
+#if defined(__GNUC__) // GCC, Clang, ICC
+		__builtin_unreachable();
+#elif defined(_MSC_VER) // MSVC
+		__assume(false);
+#else
+		throw std::runtime_error("unreachable");
+#endif
+	};
 }; // namespace Blaze

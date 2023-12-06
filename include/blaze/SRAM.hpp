@@ -1,22 +1,22 @@
 #pragma once
 
-#include <blaze/MemTypes.hpp>
 #include <blaze/MMIO.hpp>
-#include <array>
+
+#include <vector>
+#include <cstddef> // for size_t
 
 namespace Blaze {
-	class MemRam: public MMIODevice {
-		static constexpr uint32_t MEM_SIZE = 1024 * 128;
-
-		std::array<Byte, MEM_SIZE> data;
+	class SRAM: public MMIODevice {
+		std::vector<Byte> _data;
 
 	public:
-		MemRam();
+		void setSize(size_t size);
 
 		Byte registerSize(Address offset, Byte attemptedAccessSize) override;
+
 		Address read(Address offset, Byte bitSize) override;
 		void write(Address offset, Byte bitSize, Address value) override;
 
 		void reset(Bus* bus) override;
 	};
-} // namespace Blaze
+};

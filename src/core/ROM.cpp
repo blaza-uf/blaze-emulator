@@ -1,12 +1,16 @@
 #include <blaze/ROM.hpp>
 #include <blaze/util.hpp>
+#include <blaze/Bus.hpp>
+#include <blaze/debug.hpp>
 
 #include <fstream>
 #include <cstring>
+#include <cassert>
 
 // 32 KiB
 static constexpr size_t MIN_ROM_SIZE = 0x8000;
 static constexpr size_t ROM_FIXED_VALUE = 0x33;
+static constexpr size_t ROM_FIXED_VALUE_ALTERNATIVE = 0x01;
 static constexpr size_t LOROM_HEADER_OFFSET = 0x007fb0;
 static constexpr size_t HIROM_HEADER_OFFSET = 0x00ffb0;
 static constexpr size_t LOROM_FIXED_VALUE_OFFSET = 0x007fda;
@@ -37,7 +41,24 @@ size_t Blaze::ROM::byteSize() const {
 		return 0;
 	}
 
-	return static_cast<size_t>(1) << _memory[headerOffset() + HeaderFieldOffset::Size];
+	return (static_cast<size_t>(1) << _memory[headerOffset() + HeaderFieldOffset::Size]) * 1024;
+};
+
+size_t Blaze::ROM::sramByteSize() const {
+	if (_memory.empty()) {
+		return 0;
+	}
+
+	switch (static_cast<CartridgeType>(_memory[headerOffset() + HeaderFieldOffset::CartridgeType])) {
+		case CartridgeType::ROM_RAM:
+		case CartridgeType::ROM_RAM_Battery:
+		case CartridgeType::ROM_SA1_RAM:
+		case CartridgeType::ROM_SA1_RAM_Battery:
+			return (static_cast<size_t>(1) << _memory[headerOffset() + HeaderFieldOffset::RAMSize]) * 1024;
+
+		default:
+			return 0;
+	}
 };
 
 std::string Blaze::ROM::name() const {
@@ -80,74 +101,46 @@ void Blaze::ROM::load(const std::string& path) {
 	}
 
 	// try to see if the LoROM header is valid
-	if (_memory[LOROM_FIXED_VALUE_OFFSET] == ROM_FIXED_VALUE) {
+	if (_memory[LOROM_FIXED_VALUE_OFFSET] == ROM_FIXED_VALUE || _memory[LOROM_FIXED_VALUE_OFFSET] == ROM_FIXED_VALUE_ALTERNATIVE) {
 		_type = Type::LoROM;
 	}
 	// try to see if the HiROM header is valid
-	else if (_memory[HIROM_FIXED_VALUE_OFFSET] == ROM_FIXED_VALUE) {
+	else if (_memory[HIROM_FIXED_VALUE_OFFSET] == ROM_FIXED_VALUE || _memory[LOROM_FIXED_VALUE_OFFSET] == ROM_FIXED_VALUE_ALTERNATIVE) {
 		_type = Type::HiROM;
 	} else {
 		// invalid ROM
 		_memory.clear();
 		_type = Type::INVALID;
 	}
+
+	_bus->sram.setSize(sramByteSize());
 };
 
-Blaze::Byte Blaze::ROM::read8(Address offset) {
+Blaze::Byte Blaze::ROM::registerSize(Address offset, Byte attemptedAccessSize) {
+	return 8;
+};
+
+Blaze::Address Blaze::ROM::read(Address offset, Byte bitSize) {
 	if (_memory.empty()) {
 		// no ROM loaded
 		return 0;
 	}
 
-	if (offset >= _memory.size()) {
-		throw std::runtime_error("Invalid access to ROM (out-of-bounds)");
-	}
+	assert(bitSize == 8);
+
+	offset %= byteSize();
 
 	return _memory[offset];
 };
 
-Blaze::Word Blaze::ROM::read16(Address offset) {
-	if (_memory.empty()) {
-		// no ROM loaded
-		return 0;
-	}
-
-	if (offset >= _memory.size()) {
-		throw std::runtime_error("Invalid access to ROM (out-of-bounds)");
-	}
-
-	return concat16(_memory[offset + 1], _memory[offset]);
-};
-
-Blaze::Address Blaze::ROM::read24(Address offset) {
-	if (_memory.empty()) {
-		// no ROM loaded
-		return 0;
-	}
-
-	if (offset >= _memory.size()) {
-		throw std::runtime_error("Invalid access to ROM (out-of-bounds)");
-	}
-
-	return concat24(_memory[offset + 2], _memory[offset + 1], _memory[offset]);
-};
-
-void Blaze::ROM::write8(Address offset, Byte value) {
+void Blaze::ROM::write(Address offset, Byte bitSize, Address value) {
 	// no-op
 	// this is read-only memory!
-};
-
-void Blaze::ROM::write16(Address offset, Word value) {
-	// no-op
-	// this is read-only memory!
-};
-
-void Blaze::ROM::write24(Address offset, Address value) {
-	// no-op
-	// this is read-only memory!
+	Blaze::printLine("rom", "Attempt to write " + valueToHexString(value, 6, "$") + " to " + valueToHexString(offset, 6, "$") + " within ROM");
 };
 
 void Blaze::ROM::reset(Bus* bus) {
 	_memory.clear();
 	_type = Type::INVALID;
+	_bus = bus;
 };
