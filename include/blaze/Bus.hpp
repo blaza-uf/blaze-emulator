@@ -6,6 +6,7 @@
 #include <blaze/MMIO.hpp>
 #include <blaze/DMA.hpp>
 #include <blaze/SRAM.hpp>
+#include <blaze/MulDiv.hpp>
 
 namespace Blaze
 {
@@ -28,6 +29,7 @@ namespace Blaze
 		ROM rom;
 		DMA dma;
 		SRAM sram;
+		MulDiv mulDiv;
 
 		//=== Devices connected to the bus but not owned by the bus ===
 		//

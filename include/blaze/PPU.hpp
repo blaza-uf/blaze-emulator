@@ -148,6 +148,15 @@ namespace Blaze {
 			bool enableWindowsOnMainScreen: 1;
 			bool enableWindowsOnSubscreen: 1;
 			bool enableColorMath: 1;
+			SDL_Surface* _surface = nullptr;
+
+			Background();
+			~Background();
+
+			Background(const Background&) = delete;
+			Background(Background&&) = delete;
+			Background& operator=(const Background&) = delete;
+			Background& operator=(Background&&) = delete;
 
 			inline Word tilemapWordAddress() const {
 				return static_cast<Word>((tilemapAddressAndSize >> 2) & 0x3f) << 10;
@@ -166,7 +175,7 @@ namespace Blaze {
 			};
 
 			void reset();
-			void render(SDL_Renderer* renderer, const Word* vram, const Word* cgram, bool highPriority, Byte backgroundIndex, const PPU& ppu);
+			void render(SDL_Renderer* renderer, const Word* vram, const Word* cgram, bool highPriority, Byte backgroundIndex, PPU& ppu);
 		};
 
 		Bus* _bus = nullptr;
@@ -231,6 +240,9 @@ namespace Blaze {
 		SDL_Surface* _renderSurface;
 		SDL_Surface* _renderBackbuffer;
 
+		Byte* _tileBuffer = nullptr;
+		Byte* _tilePixelBuffer = nullptr;
+
 		void renderSpriteLayer(Byte priority);
 
 	public:
@@ -273,7 +285,9 @@ namespace Blaze {
 		};
 
 		inline bool forcedBlanking() const {
-			return (_inidisp & (1 << 7)) != 0;
+			// force it as false because it doesn't currently work properly on some platforms
+			return false;
+			//return (_inidisp & (1 << 7)) != 0;
 		};
 
 		inline Byte screenBrightness() const {
@@ -350,7 +364,7 @@ namespace Blaze {
 			}
 		};
 
-		static std::vector<Byte> readTile(const Word* vram, Word vramWordAddress, Byte width, Byte height, TileFormat format);
+		size_t readTile(const Word* vram, Word vramWordAddress, Byte width, Byte height, TileFormat format);
 		static Color readColor(const Word* cgram, Byte index);
 		static Sprite readSprite(const Byte* oam, Byte index);
 		static TilemapEntry readTilemapEntry(const Word* vram, Word tilemapBaseWordAddress, Byte x, Byte y);

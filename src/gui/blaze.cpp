@@ -51,7 +51,8 @@ namespace Blaze {
 	static constexpr int snesHeight = 224;
 	static constexpr auto snesMasterClock = std::chrono::duration_cast<std::chrono::milliseconds>(1s) / 21447000;
 	static constexpr auto snesFrameTime = snesMasterClock * 357368;
-	static constexpr auto snesScanlineTime = snesMasterClock * 1364;
+	static constexpr auto snesScanlineMasterClockCycles = 1364;
+	static constexpr auto snesScanlineTime = snesMasterClock * snesScanlineMasterClockCycles;
 	static constexpr auto snesVblankFirstScanline = 225;
 	static constexpr auto snesVblankFirstScanlineOverscan = 240;
 	static constexpr auto snesScanlines = 262;
@@ -711,6 +712,7 @@ static void cpuThreadMain(SDL_Window* window) {
 	auto totalScanlineTime = 0us;
 	auto& ppu = *dynamic_cast<Blaze::PPU*>(bus.ppu);
 	size_t scanline = 0;
+	size_t totalMasterClockCycles = 0;
 
 	while (Blaze::running) {
 		if (Blaze::concat24(bus.cpu.PBR, bus.cpu.PC) == Blaze::breakpoint) {
@@ -727,6 +729,7 @@ static void cpuThreadMain(SDL_Window* window) {
 		}
 
 		auto beginTime = std::chrono::steady_clock::now();
+		auto beginCycle = bus.cpu.cycleCounter;
 
 		{
 			std::shared_lock lock(Blaze::continuousExecutionMutex);
@@ -738,11 +741,17 @@ static void cpuThreadMain(SDL_Window* window) {
 		}
 
 		auto endTime = std::chrono::steady_clock::now();
+		auto endCycle = bus.cpu.cycleCounter;
 
-		totalScanlineTime += std::chrono::duration_cast<std::chrono::microseconds>(endTime - beginTime);
+		// don't increment clock cycles while in an interrupt
+		if (bus.cpu._interruptStack.empty()) {
+			totalScanlineTime += std::chrono::duration_cast<std::chrono::microseconds>(endTime - beginTime);
+			totalMasterClockCycles += (endCycle - beginCycle) * 64;
+		}
 
-		if (totalScanlineTime >= Blaze::snesScanlineTime) {
+		if (totalMasterClockCycles >= Blaze::snesScanlineMasterClockCycles) {
 			totalScanlineTime = 0us;
+			totalMasterClockCycles = 0;
 			++scanline;
 
 			if (scanline >= Blaze::snesScanlines) {

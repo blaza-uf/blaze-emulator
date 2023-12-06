@@ -114,6 +114,7 @@ namespace Blaze
 		// *don't* reset the ROM
 		//rom.reset(this);
 		dma.reset(this);
+		mulDiv.reset(this);
 		if (ppu != nullptr) {
 			ppu->reset(this);
 		}
@@ -197,6 +198,18 @@ void Blaze::Bus::findDeviceAndOffset(Address fullAddress, Byte bitSize, bool for
 		// APU IO registers (only 4 of them, but mirrored across this range)
 		outDevice = apu;
 		outOffset = addr % 4;
+		return;
+	}
+
+	if (bank >= 0x00 && bank <= 0x3f && addr >= Blaze::MULDIV_BLOCK1_START && addr <= Blaze::MULDIV_BLOCK1_END) {
+		outDevice = &mulDiv;
+		outOffset = (addr - Blaze::MULDIV_BLOCK1_START) + Blaze::MULDIV_BLOCK1_OFFSET_BEGIN;
+		return;
+	}
+
+	if (bank >= 0x00 && bank <= 0x3f && addr >= Blaze::MULDIV_BLOCK2_START && addr <= Blaze::MULDIV_BLOCK2_END) {
+		outDevice = &mulDiv;
+		outOffset = (addr - Blaze::MULDIV_BLOCK2_START) + Blaze::MULDIV_BLOCK2_OFFSET_BEGIN;
 		return;
 	}
 

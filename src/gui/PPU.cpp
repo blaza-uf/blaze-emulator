@@ -236,8 +236,10 @@ Blaze::Address Blaze::PPU::read(Address offset, Byte bitSize) {
 		case PPU_SPECIAL_OFFSET_RDNMI: {
 			std::unique_lock lock(_rdnmiMutex);
 			auto val = _rdnmi;
-			// clear the vblank flag
-			_rdnmi &= ~(1 << 7);
+			if (!forcedBlanking()) {
+				// clear the vblank flag
+				_rdnmi &= ~(1 << 7);
+			}
 			return val;
 		} break;
 
@@ -250,6 +252,15 @@ void Blaze::PPU::write(Address offset, Byte bitSize, Address value) {
 	switch (offset) {
 		case PPUMMIORegister::INIDISP:
 			_inidisp = value;
+			if (forcedBlanking()) {
+				std::unique_lock lock(_rdnmiMutex);
+				auto prev = _rdnmi;
+				_rdnmi |= 1 << 7;
+
+				if (_bus->cpu._interruptStack.empty() && (prev & (1 << 7)) == 0 && (_nmitimen & (1 << 7)) != 0) {
+					_bus->cpu.nmi();
+				}
+			}
 			break;
 		case PPUMMIORegister::OBJSEL:
 			_objsel = value;
@@ -492,7 +503,7 @@ void Blaze::PPU::write(Address offset, Byte bitSize, Address value) {
 
 			{
 				std::unique_lock lock(_rdnmiMutex);
-				if ((prev & (1 << 7)) == 0 && (_nmitimen & (1 << 7)) != 0) {
+				if (_bus->cpu._interruptStack.empty() && (prev & (1 << 7)) == 0 && (_nmitimen & (1 << 7)) != 0) {
 					_bus->cpu.nmi();
 				}
 			}
@@ -579,16 +590,17 @@ void Blaze::PPU::beginVBlank() {
 
 	{
 		std::unique_lock lock(_rdnmiMutex);
+		auto prev = _rdnmi;
 		_rdnmi |= (1 << 7);
 
-		if ((_nmitimen & (1 << 7)) != 0) {
+		if (_bus->cpu._interruptStack.empty() && (prev & (1 << 7)) == 0 && (_nmitimen & (1 << 7)) != 0) {
 			_bus->cpu.nmi();
 		}
 	}
 };
 
 void Blaze::PPU::endVBlank() {
-	{
+	if (!forcedBlanking()) {
 		std::unique_lock lock(_rdnmiMutex);
 		_rdnmi &= ~(1 << 7);
 	}
@@ -686,6 +698,10 @@ Blaze::PPU::PPU() {
 	if (_backbufferRenderer == nullptr) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create PPU backbuffer renderer: %s", SDL_GetError());
 	}
+
+	// allocate some buffers for tile rendering
+	_tileBuffer = new Byte[64ull * 64ull];
+	_tilePixelBuffer = new Byte[64ull * 64ull * 4ull];
 };
 
 Blaze::PPU::~PPU() {
@@ -693,10 +709,12 @@ Blaze::PPU::~PPU() {
 	SDL_DestroyRenderer(_backbufferRenderer);
 	SDL_FreeSurface(_renderSurface);
 	SDL_FreeSurface(_renderBackbuffer);
+
+	delete[] _tileBuffer;
+	delete[] _tilePixelBuffer;
 };
 
-std::vector<Blaze::Byte> Blaze::PPU::readTile(const Word* vram, Word vramWordAddress, Byte width, Byte height, TileFormat format) {
-	std::vector<Byte> result;
+size_t Blaze::PPU::readTile(const Word* vram, Word vramWordAddress, Byte width, Byte height, TileFormat format) {
 	size_t pixels = static_cast<size_t>(width) * static_cast<size_t>(height);
 	auto basicTileWordSize = tileFormatWordSize(format);
 	auto bitPlanes = tileFormatPixelBitPlanes(format);
@@ -731,12 +749,12 @@ std::vector<Blaze::Byte> Blaze::PPU::readTile(const Word* vram, Word vramWordAdd
 					pixelValue |= bit << bitPlane;
 				}
 
-				result.push_back(pixelValue);
+				_tileBuffer[pixel] = pixelValue;
 			} break;
 		}
 	}
 
-	return result;
+	return pixels;
 };
 
 // these are basically magic values that have been adapted from SDL.
@@ -823,7 +841,15 @@ Blaze::PPU::TilemapEntry Blaze::PPU::readTilemapEntry(const Word* vram, Word til
 	return result;
 };
 
-void Blaze::PPU::Background::render(SDL_Renderer* renderer, const Word* vram, const Word* cgram, bool highPriority, Byte backgroundIndex, const PPU& ppu) {
+Blaze::PPU::Background::Background() {
+	_surface = SDL_CreateRGBSurfaceWithFormat(0, 2 * 32 * 16, 2 * 32 * 16, 32, SDL_PIXELFORMAT_RGBA8888);
+};
+
+Blaze::PPU::Background::~Background() {
+	SDL_FreeSurface(_surface);
+};
+
+void Blaze::PPU::Background::render(SDL_Renderer* renderer, const Word* vram, const Word* cgram, bool highPriority, Byte backgroundIndex, PPU& ppu) {
 	// TODO: subscreen
 
 	if (!enableOnMainScreen) {
@@ -836,6 +862,7 @@ void Blaze::PPU::Background::render(SDL_Renderer* renderer, const Word* vram, co
 	size_t subpaletteSize = 0;
 	size_t subpaletteCount = 0;
 	TileFormat tileFormat = TileFormat::INVALID;
+	size_t dimensions = doubleCharSize ? 16 : 8;
 
 	switch (ppu.backgroundMode()) {
 		case 0: {
@@ -876,99 +903,85 @@ void Blaze::PPU::Background::render(SDL_Renderer* renderer, const Word* vram, co
 
 	assert(palette.size() == (subpaletteSize * subpaletteCount));
 
+	auto targetWidth = static_cast<size_t>(tilemapHorizontalCount()) * 32 * dimensions;
+	auto targetHeight = static_cast<size_t>(tilemapVerticalCount()) * 32 * dimensions;
+
 	for (size_t vertical = 0; vertical < tilemapVerticalCount(); ++vertical) {
 		for (size_t horizontal = 0; horizontal < tilemapHorizontalCount(); ++horizontal) {
 			constexpr size_t TILEMAP_WORDS = 32 * 32;
 			size_t tilemapOffset = ((vertical * tilemapHorizontalCount()) + horizontal) * TILEMAP_WORDS;
 			for (size_t tilemapY = 0; tilemapY < 32; ++tilemapY) {
 				for (size_t tilemapX = 0; tilemapX < 32; ++tilemapX) {
-					size_t dimensions = doubleCharSize ? 16 : 8;
 					int absoluteX = static_cast<int>(((horizontal * 32) + tilemapX) * dimensions);
 					int absoluteY = static_cast<int>(((vertical * 32) + tilemapY) * dimensions);
-
-					absoluteX -= horizontalScroll;
-					absoluteY -= verticalScroll;
-
-					int absoluteEndX = absoluteX + static_cast<int>(dimensions);
-					int absoluteEndY = absoluteY + static_cast<int>(dimensions);
-
-					if (
-						absoluteX > Blaze::snesWidth ||
-						absoluteEndX < 0 ||
-						absoluteY > Blaze::snesHeight ||
-						absoluteEndY < 0
-					) {
-						// this tile isn't visible at all
-						//Blaze::printLine("ppu", "invisible tile");
-						continue;
-					}
 
 					auto entry = PPU::readTilemapEntry(vram, tilemapWordAddress() + tilemapOffset, tilemapX, tilemapY);
 					const Color* subpalette = &palette[entry.paletteGroup * subpaletteSize];
 
 					assert((palette.size() - (entry.paletteGroup * subpaletteSize)) >= subpaletteSize);
 
-					auto tile = PPU::readTile(vram, chrBaseWordAddress() + (entry.tileIndex * tileFormatWordSize(tileFormat)), doubleCharSize ? 16 : 8, doubleCharSize ? 16 : 8, tileFormat);
-					std::vector<Byte> pixels;
+					auto tilePixelCount = ppu.readTile(vram, chrBaseWordAddress() + (entry.tileIndex * tileFormatWordSize(tileFormat)), dimensions, dimensions, tileFormat);
 
-					pixels.reserve(tile.size() * 4);
-
-					for (Byte subpaletteIndex: tile) {
+					for (auto i = 0; i < tilePixelCount; ++i) {
+						const auto& subpaletteIndex = ppu._tileBuffer[i];
 						assert(subpaletteIndex < subpaletteSize);
 						if (subpaletteIndex == 0) {
-							pixels.push_back(0);
-							pixels.push_back(0);
-							pixels.push_back(0);
-							pixels.push_back(0);
+							ppu._tilePixelBuffer[(i * 4) + 0] = 0;
+							ppu._tilePixelBuffer[(i * 4) + 1] = 0;
+							ppu._tilePixelBuffer[(i * 4) + 2] = 0;
+							ppu._tilePixelBuffer[(i * 4) + 3] = 0;
 						} else {
 							const auto& color = subpalette[subpaletteIndex];
-							pixels.push_back(color.r);
-							pixels.push_back(color.g);
-							pixels.push_back(color.b);
-							pixels.push_back(color.a);
+							ppu._tilePixelBuffer[(i * 4) + 0] = color.r;
+							ppu._tilePixelBuffer[(i * 4) + 1] = color.g;
+							ppu._tilePixelBuffer[(i * 4) + 2] = color.b;
+							ppu._tilePixelBuffer[(i * 4) + 3] = color.a;
 						}
 					}
 
-					SDL_Texture* tileTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STATIC, dimensions, dimensions);
-					SDL_Rect fullSrc {
+					SDL_Surface* tileSurface = SDL_CreateRGBSurfaceWithFormatFrom(ppu._tilePixelBuffer, dimensions, dimensions, 32, 4 * dimensions, SDL_PIXELFORMAT_RGBA8888);
+					SDL_Rect src {
 						0, 0,
 						static_cast<int>(dimensions),
 						static_cast<int>(dimensions),
 					};
 
-					SDL_UpdateTexture(tileTexture, &fullSrc, pixels.data(), 4 * dimensions);
-
-					auto leftMinus = (absoluteX < 0) ? (0 - absoluteX) : 0;
-					auto topMinus = (absoluteY < 0) ? (0 - absoluteY) : 0;
-					auto rightMinus = (absoluteEndX > Blaze::snesWidth) ? (absoluteEndX - Blaze::snesWidth) : 0;
-					auto bottomMinus = (absoluteEndY > Blaze::snesHeight) ? (absoluteEndY - Blaze::snesHeight) : 0;
-
-					auto renderedWidth = (static_cast<int>(dimensions) - rightMinus) - leftMinus;
-					auto renderedHeight = (static_cast<int>(dimensions) - bottomMinus) - topMinus;
-
-					SDL_Rect src {
-						leftMinus,
-						topMinus,
-						renderedWidth,
-						renderedHeight,
-					};
-
 					SDL_Rect dest {
-						(absoluteX < 0) ? 0 : absoluteX,
-						(absoluteY < 0) ? 0 : absoluteY,
-						renderedWidth,
-						renderedHeight,
+						absoluteX,
+						absoluteY,
+						src.w,
+						src.h,
 					};
 
-					SDL_RenderCopyEx(renderer, tileTexture, &src, &dest, 0, nullptr, static_cast<SDL_RendererFlip>((entry.flipHorizontally ? SDL_FLIP_HORIZONTAL : 0) | (entry.flipVertically ? SDL_FLIP_VERTICAL : 0)));
+					SDL_BlitSurface(tileSurface, &src, _surface, &dest);
+					//SDL_RenderCopyEx(renderer, tileTexture, &src, &dest, 0, nullptr, static_cast<SDL_RendererFlip>((entry.flipHorizontally ? SDL_FLIP_HORIZONTAL : 0) | (entry.flipVertically ? SDL_FLIP_VERTICAL : 0)));
 
-					SDL_DestroyTexture(tileTexture);
+					SDL_FreeSurface(tileSurface);
 
 					//Blaze::printLine("ppu", "rendered visible tile from " + std::to_string(chrBaseWordAddress() + (entry.tileIndex * tileFormatWordSize(tileFormat))) + " at " + std::to_string(leftMinus) + ", " + std::to_string(topMinus) + " of " + std::to_string(renderedWidth) + ", " + std::to_string(renderedHeight));
 				}
 			}
 		}
 	}
+
+	int renderWidth = (horizontalScroll + Blaze::snesWidth > targetWidth) ? static_cast<int>(targetWidth - horizontalScroll) : Blaze::snesWidth;
+	int renderHeight = (verticalScroll + Blaze::snesHeight > targetHeight) ? static_cast<int>(targetHeight - verticalScroll) : Blaze::snesHeight;
+
+	SDL_Rect src {
+		0,
+		0,
+		renderWidth,
+		renderHeight,
+	};
+
+	SDL_Rect dest {
+		0, 0,
+		renderWidth, renderHeight,
+	};
+
+	SDL_BlitSurface(_surface, &src, ppu._renderBackbuffer, &dest);
+
+	//Blaze::printLine("ppu", "rendered BG");
 };
 
 void Blaze::PPU::renderSpriteLayer(Byte priority) {
@@ -1008,34 +1021,31 @@ void Blaze::PPU::renderSpriteLayer(Byte priority) {
 		auto page = sprite.secondTilePage ? secondPage : firstPage;
 		auto [width, height] = spriteSizeForType(spriteSize(), sprite.large);
 
-		auto tile = PPU::readTile(_vram.data(), page + (sprite.tileIndex * tileFormatWordSize(TileFormat::_4bpp)), width, height, TileFormat::_4bpp);
-		std::vector<Byte> pixels;
+		auto tilePixelCount = PPU::readTile(_vram.data(), page + (sprite.tileIndex * tileFormatWordSize(TileFormat::_4bpp)), width, height, TileFormat::_4bpp);
 
-		pixels.reserve(tile.size() * 4);
-
-		for (Byte subpaletteIndex: tile) {
+		for (auto i = 0; i < tilePixelCount; ++i) {
+			const auto& subpaletteIndex = _tileBuffer[i];
 			if (subpaletteIndex == 0) {
-				pixels.push_back(0);
-				pixels.push_back(0);
-				pixels.push_back(0);
-				pixels.push_back(0);
+				_tilePixelBuffer[(i * 4) + 0] = 0;
+				_tilePixelBuffer[(i * 4) + 1] = 0;
+				_tilePixelBuffer[(i * 4) + 2] = 0;
+				_tilePixelBuffer[(i * 4) + 3] = 0;
 			} else {
 				const auto& color = subpalette[subpaletteIndex];
-				pixels.push_back(color.r);
-				pixels.push_back(color.g);
-				pixels.push_back(color.b);
-				pixels.push_back(color.a);
+				_tilePixelBuffer[(i * 4) + 0] = color.r;
+				_tilePixelBuffer[(i * 4) + 1] = color.g;
+				_tilePixelBuffer[(i * 4) + 2] = color.b;
+				_tilePixelBuffer[(i * 4) + 3] = color.a;
 			}
 		}
 
-		SDL_Texture* spriteTexture = SDL_CreateTexture(_backbufferRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STATIC, width, height);
+		SDL_Surface* spriteSurface = SDL_CreateRGBSurfaceWithFormatFrom(_tilePixelBuffer, width, height, 32, 4 * width, SDL_PIXELFORMAT_RGBA8888);
+
 		SDL_Rect fullSrc {
 			0, 0,
 			static_cast<int>(width),
 			static_cast<int>(height),
 		};
-
-		SDL_UpdateTexture(spriteTexture, &fullSrc, pixels.data(), 4 * width);
 
 		int absoluteX = sprite.x;
 		int absoluteY = sprite.y;
@@ -1076,9 +1086,10 @@ void Blaze::PPU::renderSpriteLayer(Byte priority) {
 			renderedHeight,
 		};
 
-		SDL_RenderCopyEx(_backbufferRenderer, spriteTexture, &src, &dest, 0, nullptr, static_cast<SDL_RendererFlip>((sprite.flipHorizontally ? SDL_FLIP_HORIZONTAL : 0) | (sprite.flipVertically ? SDL_FLIP_VERTICAL : 0)));
+		SDL_BlitSurface(spriteSurface, &src, _renderBackbuffer, &dest);
+		//SDL_RenderCopyEx(_backbufferRenderer, spriteTexture, &src, &dest, 0, nullptr, static_cast<SDL_RendererFlip>((sprite.flipHorizontally ? SDL_FLIP_HORIZONTAL : 0) | (sprite.flipVertically ? SDL_FLIP_VERTICAL : 0)));
 
-		SDL_DestroyTexture(spriteTexture);
+		SDL_FreeSurface(spriteSurface);
 
 		//Blaze::printLine("ppu", "rendered visible sprite from " + std::to_string(page + (sprite.tileIndex * tileFormatWordSize(TileFormat::_4bpp))) + " at " + std::to_string(leftMinus) + ", " + std::to_string(topMinus) + " of " + std::to_string(renderedWidth) + ", " + std::to_string(renderedHeight) + " (" + std::to_string(width) + ", " + std::to_string(height) + ")");
 	}
