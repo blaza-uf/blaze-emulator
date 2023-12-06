@@ -53,14 +53,14 @@ namespace Blaze {
 
 		static constexpr std::pair<Byte, Byte> spriteSizeForType(SpriteSize type, bool large) {
 			switch (type) {
-				case SpriteSize::_8x8And16x16:   return large ? std::make_pair<Byte, Byte>( 8,  8) : std::make_pair<Byte, Byte>(16, 16);
-				case SpriteSize::_8x8And32x32:   return large ? std::make_pair<Byte, Byte>( 8,  8) : std::make_pair<Byte, Byte>(32, 32);
-				case SpriteSize::_8x8And64x64:   return large ? std::make_pair<Byte, Byte>( 8,  8) : std::make_pair<Byte, Byte>(64, 64);
-				case SpriteSize::_16x16And32x32: return large ? std::make_pair<Byte, Byte>(16, 16) : std::make_pair<Byte, Byte>(32, 32);
-				case SpriteSize::_16x16And64x64: return large ? std::make_pair<Byte, Byte>(16, 16) : std::make_pair<Byte, Byte>(64, 64);
-				case SpriteSize::_32x32And64x64: return large ? std::make_pair<Byte, Byte>(32, 32) : std::make_pair<Byte, Byte>(64, 64);
-				case SpriteSize::_16x32And32x64: return large ? std::make_pair<Byte, Byte>(16, 32) : std::make_pair<Byte, Byte>(32, 64);
-				case SpriteSize::_16x32And32x32: return large ? std::make_pair<Byte, Byte>(16, 32) : std::make_pair<Byte, Byte>(32, 32);
+				case SpriteSize::_8x8And16x16:   return large ? std::make_pair<Byte, Byte>(16, 16) : std::make_pair<Byte, Byte>( 8,  8);
+				case SpriteSize::_8x8And32x32:   return large ? std::make_pair<Byte, Byte>(32, 32) : std::make_pair<Byte, Byte>( 8,  8);
+				case SpriteSize::_8x8And64x64:   return large ? std::make_pair<Byte, Byte>(64, 64) : std::make_pair<Byte, Byte>( 8,  8);
+				case SpriteSize::_16x16And32x32: return large ? std::make_pair<Byte, Byte>(32, 32) : std::make_pair<Byte, Byte>(16, 16);
+				case SpriteSize::_16x16And64x64: return large ? std::make_pair<Byte, Byte>(64, 64) : std::make_pair<Byte, Byte>(16, 16);
+				case SpriteSize::_32x32And64x64: return large ? std::make_pair<Byte, Byte>(64, 64) : std::make_pair<Byte, Byte>(32, 32);
+				case SpriteSize::_16x32And32x64: return large ? std::make_pair<Byte, Byte>(32, 64) : std::make_pair<Byte, Byte>(16, 32);
+				case SpriteSize::_16x32And32x32: return large ? std::make_pair<Byte, Byte>(32, 32) : std::make_pair<Byte, Byte>(16, 32);
 				default:
 					return std::make_pair<Byte, Byte>(0, 0);
 			}

@@ -784,6 +784,8 @@ void Blaze::print(const std::string& subsystem, const std::string& message) {
 #else
 	OutputDebugString(copy.c_str());
 #endif
+#else
+	printf("%s", copy.c_str());
 #endif
 
 	debugConsoleOutput += copy;
@@ -856,16 +858,10 @@ int main(int argc, char** argv) {
 		#warning TODO
 #endif
 
-	mainWindow = SDL_CreateWindow("Blaze", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, Blaze::defaultWindowWidth, Blaze::defaultWindowHeight, SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
-	if (mainWindow == nullptr) {
-		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create main window: %s", SDL_GetError());
-		SDL_Quit();
-		return 1;
-	}
+	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
 
-	renderer = SDL_CreateRenderer(mainWindow, -1, SDL_RENDERER_PRESENTVSYNC);
-	if (renderer == nullptr) {
-		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create renderer for main window: %s", SDL_GetError());
+	if (SDL_CreateWindowAndRenderer(Blaze::defaultWindowWidth, Blaze::defaultWindowHeight, SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN, &mainWindow, &renderer) != 0) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create main window and renderer: %s", SDL_GetError());
 		SDL_Quit();
 		return 1;
 	}
@@ -914,8 +910,6 @@ int main(int argc, char** argv) {
 		SetMenu(win32MainWindow, mainMenu);
 	}
 
-	setContinuousExecution(true);
-
 	// enable Win32 events in the SDL event loop
 	SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
 
@@ -951,6 +945,8 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 #endif // _WIN32
+
+	setContinuousExecution(true);
 
 	bus.cpu.putCharacterHook = [&](char character) {
 		Blaze::print("user-code", std::string(1, character));
@@ -1252,13 +1248,15 @@ int main(int argc, char** argv) {
 
 		SDL_Rect windowRect {
 			0, 0,
-			windowWidth, windowHeight,
+			static_cast<int>(windowWidth), static_cast<int>(windowHeight),
 		};
 
 		ppu.renderSurface([&](SDL_Surface* surface) {
 			SDL_Surface* destSurface = nullptr;
 			if (SDL_LockTextureToSurface(renderTexture, &rect, &destSurface) == 0) {
-				SDL_BlitSurface(surface, &rect, destSurface, &rect);
+				if (SDL_BlitSurface(surface, &rect, destSurface, &rect) != 0) {
+					SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to blit surface: %s", SDL_GetError());
+				}
 				SDL_UnlockTexture(renderTexture);
 			} else {
 				SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to lock texture: %s", SDL_GetError());

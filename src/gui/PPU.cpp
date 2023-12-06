@@ -659,6 +659,10 @@ void Blaze::PPU::endVBlank() {
 };
 
 Blaze::PPU::PPU() {
+	_cgram.fill(0);
+	_vram.fill(0);
+	_oamData.fill(0);
+
 	_renderSurface = SDL_CreateRGBSurfaceWithFormat(0, Blaze::snesWidth, Blaze::snesHeight, 32, SDL_PIXELFORMAT_RGBA8888);
 	if (_renderSurface == nullptr) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create PPU render surface: %s", SDL_GetError());
@@ -698,11 +702,13 @@ std::vector<Blaze::Byte> Blaze::PPU::readTile(const Word* vram, Word vramWordAdd
 		Byte column = pixel % width;
 		size_t baseWordOffset = 0;
 
-		baseWordOffset = static_cast<size_t>(basicTileWordSize) * ((16 * row) + column);
+		baseWordOffset = static_cast<size_t>(basicTileWordSize) * ((static_cast<size_t>(16) * (row / 8)) + (column / 8));
 		row %= 8;
 		column %= 8;
 
-		Byte pixelMask = 1 << column;
+		baseWordOffset += row;
+
+		Byte pixelMask = 1 << (7 - column);
 
 		switch (format) {
 			case TileFormat::Mode7:
@@ -710,19 +716,18 @@ std::vector<Blaze::Byte> Blaze::PPU::readTile(const Word* vram, Word vramWordAdd
 				break;
 
 			default: {
-				auto bitPlaneGroupWordOffset = static_cast<size_t>(row) * (bitPlanes / 2);
 				Byte pixelValue = 0;
 
 				for (Byte bitPlane = 0; bitPlane < bitPlanes; ++bitPlane) {
 					Byte bitPlaneWordIndex = bitPlane % 2;
-					Byte bitPlaneWordOffset = bitPlane / 2;
-					auto bitPlaneWord = vram[vramWordAddress + baseWordOffset + bitPlaneGroupWordOffset + bitPlaneWordOffset];
+					size_t bitPlaneWordOffset = bitPlane / 2;
+					auto bitPlaneWord = vram[vramWordAddress + baseWordOffset + (bitPlaneWordOffset * 8)];
 					Byte bitPlaneByte = bitPlaneWord >> (bitPlaneWordIndex * 8);
 					Byte bit = ((bitPlaneByte & pixelMask) != 0) ? 1 : 0;
 					pixelValue |= bit << bitPlane;
-
-					result.push_back(pixelValue);
 				}
+
+				result.push_back(pixelValue);
 			} break;
 		}
 	}
@@ -890,7 +895,7 @@ void Blaze::PPU::Background::render(SDL_Renderer* renderer, const Word* vram, co
 						absoluteEndY < 0
 					) {
 						// this tile isn't visible at all
-						Blaze::printLine("ppu", "invisible tile");
+						//Blaze::printLine("ppu", "invisible tile");
 						continue;
 					}
 
@@ -906,11 +911,18 @@ void Blaze::PPU::Background::render(SDL_Renderer* renderer, const Word* vram, co
 
 					for (Byte subpaletteIndex: tile) {
 						assert(subpaletteIndex < subpaletteSize);
-						const auto& color = subpalette[subpaletteIndex];
-						pixels.push_back(color.r);
-						pixels.push_back(color.g);
-						pixels.push_back(color.b);
-						pixels.push_back(color.a);
+						if (subpaletteIndex == 0) {
+							pixels.push_back(0);
+							pixels.push_back(0);
+							pixels.push_back(0);
+							pixels.push_back(0);
+						} else {
+							const auto& color = subpalette[subpaletteIndex];
+							pixels.push_back(color.r);
+							pixels.push_back(color.g);
+							pixels.push_back(color.b);
+							pixels.push_back(color.a);
+						}
 					}
 
 					SDL_Texture* tileTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STATIC, dimensions, dimensions);
@@ -924,11 +936,11 @@ void Blaze::PPU::Background::render(SDL_Renderer* renderer, const Word* vram, co
 
 					auto leftMinus = (absoluteX < 0) ? (0 - absoluteX) : 0;
 					auto topMinus = (absoluteY < 0) ? (0 - absoluteY) : 0;
-					auto rightMinus = (absoluteEndX > Blaze::snesWidth) ? Blaze::snesWidth : absoluteEndX;
-					auto bottomMinus = (absoluteEndY > Blaze::snesHeight) ? Blaze::snesHeight : absoluteEndY;
+					auto rightMinus = (absoluteEndX > Blaze::snesWidth) ? (absoluteEndX - Blaze::snesWidth) : 0;
+					auto bottomMinus = (absoluteEndY > Blaze::snesHeight) ? (absoluteEndY - Blaze::snesHeight) : 0;
 
-					auto renderedWidth = rightMinus - leftMinus;
-					auto renderedHeight = bottomMinus - topMinus;
+					auto renderedWidth = (static_cast<int>(dimensions) - rightMinus) - leftMinus;
+					auto renderedHeight = (static_cast<int>(dimensions) - bottomMinus) - topMinus;
 
 					SDL_Rect src {
 						leftMinus,
@@ -948,7 +960,7 @@ void Blaze::PPU::Background::render(SDL_Renderer* renderer, const Word* vram, co
 
 					SDL_DestroyTexture(tileTexture);
 
-					Blaze::printLine("ppu", "rendered visible tile at " + std::to_string(leftMinus) + ", " + std::to_string(topMinus));
+					Blaze::printLine("ppu", "rendered visible tile from " + std::to_string(chrBaseWordAddress() + (entry.tileIndex * tileFormatWordSize(tileFormat))) + " at " + std::to_string(leftMinus) + ", " + std::to_string(topMinus) + " of " + std::to_string(renderedWidth) + ", " + std::to_string(renderedHeight));
 				}
 			}
 		}
@@ -998,11 +1010,18 @@ void Blaze::PPU::renderSpriteLayer(Byte priority) {
 		pixels.reserve(tile.size() * 4);
 
 		for (Byte subpaletteIndex: tile) {
-			const auto& color = subpalette[subpaletteIndex];
-			pixels.push_back(color.r);
-			pixels.push_back(color.g);
-			pixels.push_back(color.b);
-			pixels.push_back(color.a);
+			if (subpaletteIndex == 0) {
+				pixels.push_back(0);
+				pixels.push_back(0);
+				pixels.push_back(0);
+				pixels.push_back(0);
+			} else {
+				const auto& color = subpalette[subpaletteIndex];
+				pixels.push_back(color.r);
+				pixels.push_back(color.g);
+				pixels.push_back(color.b);
+				pixels.push_back(color.a);
+			}
 		}
 
 		SDL_Texture* spriteTexture = SDL_CreateTexture(_backbufferRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STATIC, width, height);
@@ -1020,13 +1039,24 @@ void Blaze::PPU::renderSpriteLayer(Byte priority) {
 		int absoluteEndX = absoluteX + static_cast<int>(width);
 		int absoluteEndY = absoluteY + static_cast<int>(height);
 
+		if (
+			absoluteX > Blaze::snesWidth ||
+			absoluteEndX < 0 ||
+			absoluteY > Blaze::snesHeight ||
+			absoluteEndY < 0
+		) {
+			// this sprite isn't visible at all
+			//Blaze::printLine("ppu", "invisible sprite");
+			continue;
+		}
+
 		auto leftMinus = (absoluteX < 0) ? (0 - absoluteX) : 0;
 		auto topMinus = (absoluteY < 0) ? (0 - absoluteY) : 0;
-		auto rightMinus = (absoluteEndX > Blaze::snesWidth) ? Blaze::snesWidth : absoluteEndX;
-		auto bottomMinus = (absoluteEndY > Blaze::snesHeight) ? Blaze::snesHeight : absoluteEndY;
+		auto rightMinus = (absoluteEndX > Blaze::snesWidth) ? (absoluteEndX - Blaze::snesWidth) : 0;
+		auto bottomMinus = (absoluteEndY > Blaze::snesHeight) ? (absoluteEndY - Blaze::snesHeight) : 0;
 
-		auto renderedWidth = rightMinus - leftMinus;
-		auto renderedHeight = bottomMinus - topMinus;
+		auto renderedWidth = (static_cast<int>(width) - rightMinus) - leftMinus;
+		auto renderedHeight = (static_cast<int>(height) - bottomMinus) - topMinus;
 
 		SDL_Rect src {
 			leftMinus,
@@ -1046,6 +1076,6 @@ void Blaze::PPU::renderSpriteLayer(Byte priority) {
 
 		SDL_DestroyTexture(spriteTexture);
 
-		Blaze::printLine("ppu", "rendered visible sprite at " + std::to_string(leftMinus) + ", " + std::to_string(topMinus));
+		Blaze::printLine("ppu", "rendered visible sprite from " + std::to_string(page + (sprite.tileIndex * tileFormatWordSize(TileFormat::_4bpp))) + " at " + std::to_string(leftMinus) + ", " + std::to_string(topMinus) + " of " + std::to_string(renderedWidth) + ", " + std::to_string(renderedHeight) + " (" + std::to_string(width) + ", " + std::to_string(height) + ")");
 	}
 };
