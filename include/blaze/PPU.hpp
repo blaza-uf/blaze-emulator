@@ -364,7 +364,7 @@ namespace Blaze {
 			}
 		};
 
-		size_t readTile(const Word* vram, Word vramWordAddress, Byte width, Byte height, TileFormat format);
+		size_t readTile(Word vramWordAddress, Byte width, Byte height, TileFormat format);
 		static Color readColor(const Word* cgram, Byte index);
 		static Sprite readSprite(const Byte* oam, Byte index);
 		static TilemapEntry readTilemapEntry(const Word* vram, Word tilemapBaseWordAddress, Byte x, Byte y);
