@@ -40,6 +40,24 @@ namespace Blaze {
 			"AliasedDoubleWordRepeated",
 		};
 
+		static constexpr Byte transferPatternHDMABytes(TransferPattern pattern) {
+			switch (pattern) {
+				case TransferPattern::SingleByte:
+					return 1;
+				case TransferPattern::SingleWordSequential:
+				case TransferPattern::SingleWordRepeated:
+				case TransferPattern::AliasedSingleWordRepeated:
+					return 2;
+				case TransferPattern::DoubleWordRepeated:
+				case TransferPattern::QuadByteSequential:
+				case TransferPattern::DoubleWordSequential:
+				case TransferPattern::AliasedDoubleWordRepeated:
+					return 4;
+				default:
+					return 0;
+			}
+		};
+
 		enum class Direction: bool {
 			AToB = false,
 			BToA = true,
@@ -63,7 +81,7 @@ namespace Blaze {
 			Byte parameters = 0xff;
 			Byte peripheralBusAddress = 0xff;
 			Address cpuBusAddress = 0xffffff;
-			Word byteCount = 0xffff;
+			Word byteCountOrIndirectHDMAAddress = 0xffff;
 			Byte indirectHDMABank = 0xff;
 			Address hdmaTableAddress = 0xffffff;
 			Byte hdmaLineCounter = 0xff;
@@ -89,6 +107,10 @@ namespace Blaze {
 			inline bool indirect() const {
 				return (parameters & (1 << 6)) != 0;
 			};
+
+			inline Address indirectHDMAAddress() const {
+				return concat24(indirectHDMABank, byteCountOrIndirectHDMAAddress);
+			};
 		};
 
 		Bus* _bus = nullptr;
@@ -101,5 +123,7 @@ namespace Blaze {
 		void write(Address offset, Byte bitSize, Address value) override;
 
 		void reset(Bus* bus) override;
+
+		void performHDMA(Word scanline);
 	};
 };

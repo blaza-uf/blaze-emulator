@@ -93,7 +93,7 @@ namespace Blaze {
 
 	template<typename T>
 	static constexpr bool testBit(T value, uint8_t bitIndex) {
-		return value & (static_cast<T>(1) << bitIndex);
+		return (value & (static_cast<T>(1) << bitIndex)) != 0;
 	};
 
 	template<typename T>

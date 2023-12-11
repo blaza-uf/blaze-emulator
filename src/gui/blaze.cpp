@@ -19,6 +19,7 @@
 #include <shared_mutex>
 #include <condition_variable>
 #include <chrono>
+#include <fstream>
 
 // Define SNES key constants
 #define SNES_KEY_UP      0
@@ -68,6 +69,7 @@ namespace Blaze {
 		HelpHelp = 6,
 		EditContinuousExecution = 7,
 		ViewShowDebugConsole = 8,
+		ViewShowVRAMViewer = 9,
 
 		DebuggerTextView = 100,
 		DebuggerContinue = 101,
@@ -78,6 +80,10 @@ namespace Blaze {
 		DebuggerBreakpointAddressInput = 106,
 
 		DebugConsoleTextView = 200,
+
+		VRAMViewerSubWindow = 300,
+		VRAMViewerBPPWindow = 301,
+		VRAMViewerRefresh = 302,
 	};
 
 	static constexpr LPCSTR debuggerWindowClassName = TEXT("Blaze Debugger Window Class");
@@ -95,9 +101,17 @@ namespace Blaze {
 	static constexpr int defaultDebugConsoleWindowWidth = 400;
 	static constexpr int defaultDebugConsoleWindowHeight = 600;
 
+	static constexpr LPCSTR vramViewerWindowClassName = TEXT("Blaze VRAM Viewer Window Class");
+	static constexpr int defaultVRAMViewerWindowWidth = (8 * 16) * 2;
+	static constexpr int defaultVRAMViewerWindowHeight = ((8 * 32) * 2) + 20;
+
+	static constexpr LPCSTR vramViewerSubwindowClassName = TEXT("Blaze VRAM Viewer Subwindow Class");
+
 	static WNDCLASS debuggerWindowClass = {};
 	static HMENU editMenu = nullptr;
 	static WNDCLASS debugConsoleWindowClass = {};
+	static WNDCLASS vramViewerWindowClass = {};
+	static WNDCLASS vramViewerSubwindowClass = {};
 
 	#define NEWLINE "\r\n"
 #else
@@ -683,6 +697,268 @@ static LRESULT CALLBACK debugConsoleWindowProc(HWND hwnd, UINT uMsg, WPARAM wPar
 			return DefWindowProc(hwnd, uMsg, wParam, lParam);
 	}
 };
+
+static SDL_Renderer* vramSDLRenderer = nullptr;
+static SDL_Texture* vramFullRender = nullptr;
+static Blaze::PPU::TileFormat vramTileFormat = Blaze::PPU::TileFormat::_2bpp;
+
+static LRESULT CALLBACK vramViewerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	static HWND subwindow = nullptr;
+	static HWND bppBox = nullptr;
+	static HWND refresh = nullptr;
+
+	switch (uMsg) {
+		case WM_CLOSE:
+			ShowWindow(hwnd, SW_HIDE);
+			return 0;
+
+		case WM_CREATE: {
+			auto hInst = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+
+			subwindow = CreateWindowEx(0, Blaze::vramViewerSubwindowClassName, nullptr, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hwnd, (HMENU)Blaze::MenuID::VRAMViewerSubWindow, hInst, nullptr);
+			if (!subwindow) {
+				abort();
+			}
+
+			bppBox = CreateWindow(WC_COMBOBOX, TEXT(""), CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE, 0, 0, 0, 0, hwnd, (HMENU)Blaze::MenuID::VRAMViewerBPPWindow, hInst, nullptr);
+
+			SendMessage(bppBox, CB_ADDSTRING, reinterpret_cast<WPARAM>(nullptr), reinterpret_cast<LPARAM>(TEXT("2")));
+			SendMessage(bppBox, CB_ADDSTRING, reinterpret_cast<WPARAM>(nullptr), reinterpret_cast<LPARAM>(TEXT("4")));
+			SendMessage(bppBox, CB_ADDSTRING, reinterpret_cast<WPARAM>(nullptr), reinterpret_cast<LPARAM>(TEXT("8")));
+
+			SendMessage(bppBox, CB_SETCURSEL, static_cast<WPARAM>(0), static_cast<LPARAM>(0));
+
+			refresh = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Refresh"), WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 0, Blaze::debuggerButtonY, 0, 20, hwnd, (HMENU)Blaze::MenuID::VRAMViewerRefresh, hInst, nullptr);
+
+			return 0;
+		}
+
+		case WM_NCHITTEST: {
+			auto x = LOWORD(lParam);
+			auto y = HIWORD(lParam);
+			auto ht = FORWARD_WM_NCHITTEST(hwnd, x, y, DefWindowProc);
+
+			switch (ht) {
+				case HTBOTTOMLEFT:
+				case HTBOTTOMRIGHT:
+					ht = HTBOTTOM;
+					break;
+				case HTTOPLEFT:
+				case HTTOPRIGHT:
+					ht = HTTOP;
+					break;
+				case HTLEFT:
+				case HTRIGHT:
+					ht = HTBORDER;
+					break;
+			}
+
+			return ht;
+		}
+
+		case WM_GETMINMAXINFO: {
+			auto lpmmi = reinterpret_cast<LPMINMAXINFO>(lParam);
+			RECT rc = {
+				0,
+				0,
+				Blaze::defaultVRAMViewerWindowWidth,
+				0,
+			};
+
+			AdjustWindowRectEx(&rc, GetWindowStyle(hwnd), FALSE, GetWindowExStyle(hwnd));
+
+			// adjust the width
+			lpmmi->ptMaxSize.x = lpmmi->ptMinTrackSize.x = lpmmi->ptMaxTrackSize.x = rc.right - rc.left;
+
+			return 0;
+		}
+
+		case WM_SIZE: {
+			auto width = LOWORD(lParam);
+			auto height = HIWORD(lParam);
+
+			MoveWindow(subwindow, 0, 20, width, height - 20, TRUE);
+			MoveWindow(bppBox, 0, 0, Blaze::defaultVRAMViewerWindowWidth / 4, 20, TRUE);
+			MoveWindow(refresh, Blaze::defaultVRAMViewerWindowWidth / 4, 0, (Blaze::defaultVRAMViewerWindowWidth / 4) * 3, 20, TRUE);
+			return 0;
+		}
+
+		case WM_PAINT: {
+			PAINTSTRUCT ps;
+			HDC hdc = BeginPaint(hwnd, &ps);
+
+			FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
+
+			EndPaint(hwnd, &ps);
+
+			return 0;
+		}
+
+		case WM_COMMAND: {
+			switch (LOWORD(wParam)) {
+				case Blaze::MenuID::VRAMViewerRefresh: {
+					if (HIWORD(wParam) == BN_CLICKED) {
+						switch (SendMessage(bppBox, CB_GETCURSEL, (WPARAM)0, (LPARAM)0)) {
+							case 0: vramTileFormat = Blaze::PPU::TileFormat::_2bpp; break;
+							case 1: vramTileFormat = Blaze::PPU::TileFormat::_4bpp; break;
+							case 2: vramTileFormat = Blaze::PPU::TileFormat::_8bpp; break;
+							default:
+								break;
+						}
+
+						SDL_SetRenderTarget(vramSDLRenderer, vramFullRender);
+
+						auto rows = ((64 * 1024 /* 64KiB of VRAM */) / (Blaze::PPU::tileFormatWordSize(vramTileFormat) * 2) /* bytes per tile */) / 16 /* 16 tiles per row */;
+						auto& ppu = *dynamic_cast<Blaze::PPU*>(Blaze::bus.ppu);
+
+						auto subpaletteBase = 0;
+
+						std::vector<SDL_Texture*> textures;
+
+						for (size_t row = 0; row < rows; ++row) {
+							for (size_t column = 0; column < 16; ++column) {
+								auto tile = ppu.readTileAsTexture(vramSDLRenderer, ((row * 16) + column) * Blaze::PPU::tileFormatWordSize(vramTileFormat), 8, 8, vramTileFormat, subpaletteBase);
+								SDL_Rect src {
+									0, 0,
+									8, 8,
+								};
+								SDL_Rect dst {
+									static_cast<int>(column * 16), static_cast<int>(row * 16),
+									16, 16,
+								};
+								SDL_RenderCopy(vramSDLRenderer, tile, &src, &dst);
+								textures.push_back(tile);
+							}
+						}
+
+#if 1
+						{
+							// dump the VRAM, CGRAM, OAM, rendered contents
+							std::ofstream vramDump("dump/vram.bin", std::ios::binary | std::ios::out);
+							std::ofstream renderedDump("dump/rendered.bin", std::ios::binary | std::ios::out);
+							std::ofstream cgramDump("dump/cgram.bin", std::ios::binary | std::ios::out);
+							std::ofstream oamDump("dump/oam.bin", std::ios::binary | std::ios::out);
+							std::vector<char> renderedPixels;
+
+							auto renderedWidth = (16 /* 16 tiles per row */) * 16 /* 16 pixels in width per tile */;
+							auto renderedHeight = rows * 16 /* 16 pixels in height per row/tile */;
+
+							renderedPixels.resize(renderedWidth * renderedHeight * 4);
+
+							vramDump.write(reinterpret_cast<const char*>(ppu.vram().data()), ppu.vram().size() * sizeof(*ppu.vram().data()));
+
+							SDL_RenderReadPixels(vramSDLRenderer, nullptr, SDL_PIXELFORMAT_ABGR8888, renderedPixels.data(), renderedWidth * 4);
+
+							renderedDump.write(renderedPixels.data(), renderedPixels.size());
+
+							cgramDump.write(reinterpret_cast<const char*>(ppu.cgram().data()), ppu.cgram().size() * sizeof(*ppu.cgram().data()));
+
+							oamDump.write(reinterpret_cast<const char*>(ppu.oam().data()), ppu.oam().size() * sizeof(*ppu.oam().data()));
+						}
+#endif
+
+						SDL_RenderPresent(vramSDLRenderer);
+
+						SDL_SetRenderTarget(vramSDLRenderer, nullptr);
+
+						for (auto texture: textures) {
+							SDL_DestroyTexture(texture);
+						}
+
+						InvalidateRect(subwindow, nullptr, TRUE);
+
+						return 0;
+					}
+				} break;
+
+				case Blaze::MenuID::VRAMViewerBPPWindow: {
+					if (HIWORD(wParam) == CBN_SELCHANGE) {
+						PostMessage(hwnd, WM_COMMAND, MAKELONG(Blaze::MenuID::VRAMViewerRefresh, BN_CLICKED), 0);
+						return 0;
+					}
+				} break;
+			}
+
+			return 0;
+		}
+
+		default:
+			return DefWindowProc(hwnd, uMsg, wParam, lParam);
+	}
+};
+
+static LRESULT CALLBACK vramViewerSubwindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	static SDL_Window* vramSDLSubwindow = nullptr;
+	static int deltaRows = 0;
+	static int width = 0;
+	static int height = 0;
+	static constexpr size_t MAX_ROWS = ((64 * 1024 /* 64KiB of VRAM */) / 16 /* 16 bytes per tile */) / 16 /* 16 tiles per row */;
+
+	switch (uMsg) {
+		case WM_CREATE: {
+			vramSDLSubwindow = SDL_CreateWindowFrom(hwnd);
+			vramSDLRenderer = SDL_CreateRenderer(vramSDLSubwindow, -1, 0);
+
+			vramFullRender = SDL_CreateTexture(vramSDLRenderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_TARGET, (16 /* 16 tiles per row */) * 16 /* 16 pixels in width per tile */, MAX_ROWS * 16 /* 16 pixels in height per row/tile */);
+
+			return 0;
+		}
+
+		case WM_PAINT: {
+			SDL_SetRenderDrawColor(vramSDLRenderer, 0, 0, 0, 255);
+			SDL_RenderClear(vramSDLRenderer);
+			auto rows = ((64 * 1024 /* 64KiB of VRAM */) / (Blaze::PPU::tileFormatWordSize(vramTileFormat) * 2) /* bytes per tile */) / 16 /* 16 tiles per row */;
+
+			auto baseRow = deltaRows / WHEEL_DELTA;
+
+			if (baseRow >= rows) {
+				baseRow = rows - 1;
+			}
+
+			auto renderHeight = std::min(height, (rows - baseRow) * 16);
+
+			SDL_Rect src {
+				0, baseRow * 16,
+				width, renderHeight,
+			};
+
+			SDL_Rect dst {
+				0, 0,
+				width, renderHeight,
+			};
+
+			SDL_RenderCopy(vramSDLRenderer, vramFullRender, &src, &dst);
+
+			SDL_RenderPresent(vramSDLRenderer);
+
+			return 0;
+		}
+
+		case WM_SIZE: {
+			width = LOWORD(lParam);
+			height = HIWORD(lParam);
+
+			SDL_SetWindowSize(vramSDLSubwindow, width, height);
+
+			return 0;
+		}
+
+		case WM_MOUSEWHEEL: {
+			auto delta = GET_WHEEL_DELTA_WPARAM(wParam);
+			auto rows = ((64 * 1024 /* 64KiB of VRAM */) / (Blaze::PPU::tileFormatWordSize(vramTileFormat) * 2) /* bytes per tile */) / 16 /* 16 tiles per row */;
+
+			deltaRows = std::min((rows - 1) * WHEEL_DELTA, std::max(0, deltaRows - delta));
+
+			InvalidateRect(hwnd, nullptr, TRUE);
+
+			return 0;
+		}
+
+		default:
+			return DefWindowProc(hwnd, uMsg, wParam, lParam);
+	}
+};
+
 #else // !_WIN32
 static void updateBreakpoint(Blaze::Address address, bool shouldUpdateTextField) {
 	#warning TODO
@@ -744,6 +1020,7 @@ static void cpuThreadMain(SDL_Window* window) {
 		auto endCycle = bus.cpu.cycleCounter;
 
 		// don't increment clock cycles while in an interrupt
+		// (this is wrong, but it's a temporary workaround/hack)
 		if (bus.cpu._interruptStack.empty()) {
 			totalScanlineTime += std::chrono::duration_cast<std::chrono::microseconds>(endTime - beginTime);
 			totalMasterClockCycles += (endCycle - beginCycle) * 64;
@@ -752,6 +1029,9 @@ static void cpuThreadMain(SDL_Window* window) {
 		if (totalMasterClockCycles >= Blaze::snesScanlineMasterClockCycles) {
 			totalScanlineTime = 0us;
 			totalMasterClockCycles = 0;
+
+			bus.dma.performHDMA(scanline);
+
 			++scanline;
 
 			if (scanline >= Blaze::snesScanlines) {
@@ -833,6 +1113,7 @@ int main(int argc, char** argv) {
 	HWND win32MainWindow = nullptr;
 	HWND win32DebuggerWindow = nullptr;
 	HWND win32DebugConsoleWindow = nullptr;
+	HWND win32VRAMViwerWindow = nullptr;
 	HMENU mainMenu = nullptr;
 	HMENU fileMenu = nullptr;
 	HMENU& editMenu = Blaze::editMenu;
@@ -911,6 +1192,7 @@ int main(int argc, char** argv) {
 
 		AppendMenu(viewMenu, MF_STRING, Blaze::MenuID::ViewShowDebugger, "Show &Debugger\tCtrl+D");
 		AppendMenu(viewMenu, MF_STRING, Blaze::MenuID::ViewShowDebugConsole, "Show Debug &Console\tCtrl+Shift+C");
+		AppendMenu(viewMenu, MF_STRING, Blaze::MenuID::ViewShowVRAMViewer, "Show &VRAM Viewer");
 
 		AppendMenu(mainMenu, MF_POPUP, (UINT_PTR)helpMenu, "&Help");
 
@@ -948,7 +1230,29 @@ int main(int argc, char** argv) {
 
 	win32DebugConsoleWindow = CreateWindowEx(0, Blaze::debugConsoleWindowClassName, TEXT("Debug Console"), WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, Blaze::defaultDebugConsoleWindowWidth, Blaze::defaultDebugConsoleWindowHeight, nullptr, nullptr, Blaze::debugConsoleWindowClass.hInstance, nullptr);
 	if (win32DebugConsoleWindow == nullptr) {
-		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create debugger window: %lu", GetLastError());
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create debug console window: %lu", GetLastError());
+		SDL_DestroyWindow(mainWindow);
+		SDL_Quit();
+		return 1;
+	}
+
+	// set up the VRAM viewer window
+
+	Blaze::vramViewerWindowClass.lpfnWndProc = vramViewerWindowProc;
+	Blaze::vramViewerWindowClass.hInstance = mainWindowInfo.info.win.hinstance;
+	Blaze::vramViewerWindowClass.lpszClassName = Blaze::vramViewerWindowClassName;
+
+	RegisterClass(&Blaze::vramViewerWindowClass);
+
+	Blaze::vramViewerSubwindowClass.lpfnWndProc = vramViewerSubwindowProc;
+	Blaze::vramViewerSubwindowClass.hInstance = mainWindowInfo.info.win.hinstance;
+	Blaze::vramViewerSubwindowClass.lpszClassName = Blaze::vramViewerSubwindowClassName;
+
+	RegisterClass(&Blaze::vramViewerSubwindowClass);
+
+	win32VRAMViwerWindow = CreateWindowEx(0, Blaze::vramViewerWindowClassName, TEXT("VRAM Viewer"), WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, Blaze::defaultVRAMViewerWindowWidth, Blaze::defaultVRAMViewerWindowHeight, nullptr, nullptr, Blaze::vramViewerWindowClass.hInstance, nullptr);
+	if (win32VRAMViwerWindow == nullptr) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create VRAM viewer window: %lu", GetLastError());
 		SDL_DestroyWindow(mainWindow);
 		SDL_Quit();
 		return 1;
@@ -1009,7 +1313,7 @@ int main(int argc, char** argv) {
 	}
 
 	// set up a render texture for the PPU
-	renderTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, Blaze::snesWidth, Blaze::snesHeight);
+	renderTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, Blaze::snesWidth, Blaze::snesHeight);
 	if (renderTexture == nullptr) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create render texture: %s", SDL_GetError());
 	}
@@ -1126,7 +1430,7 @@ int main(int argc, char** argv) {
 
 #ifdef _WIN32
 			case SDL_SYSWMEVENT:
-				if (event.syswm.msg->msg.win.msg == WM_COMMAND) {
+				if (win32MainWindow == event.syswm.msg->msg.win.hwnd && event.syswm.msg->msg.win.msg == WM_COMMAND) {
 					switch (static_cast<Blaze::MenuID>(LOWORD(event.syswm.msg->msg.win.wParam))) {
 						case Blaze::MenuID::FileOpen: {
 							std::string path;
@@ -1204,6 +1508,10 @@ int main(int argc, char** argv) {
 							ShowWindow(win32DebugConsoleWindow, SW_SHOW);
 						} break;
 
+						case Blaze::MenuID::ViewShowVRAMViewer: {
+							ShowWindow(win32VRAMViwerWindow, SW_SHOW);
+						} break;
+
 						case Blaze::MenuID::HelpHelp: {
 							// TODO
 						} break;
@@ -1217,7 +1525,7 @@ int main(int argc, char** argv) {
 #endif // _WIN32
 
 			case SDL_WINDOWEVENT: {
-				if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+				if (SDL_GetWindowID(mainWindow) == event.window.windowID && event.window.event == SDL_WINDOWEVENT_RESIZED) {
 					windowWidth = event.window.data1;
 					windowHeight = event.window.data2;
 				}

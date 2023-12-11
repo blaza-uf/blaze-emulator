@@ -11,6 +11,7 @@
 // forward declarations
 struct SDL_Renderer;
 struct SDL_Surface;
+struct SDL_Texture;
 
 namespace Blaze {
 	struct Bus;
@@ -365,8 +366,21 @@ namespace Blaze {
 		};
 
 		size_t readTile(Word vramWordAddress, Byte width, Byte height, TileFormat format);
+		SDL_Texture* readTileAsTexture(SDL_Renderer* renderer, Word vramWordAddress, Byte width, Byte height, TileFormat format, Byte subpaletteBase);
 		static Color readColor(const Word* cgram, Byte index);
 		static Sprite readSprite(const Byte* oam, Byte index);
 		static TilemapEntry readTilemapEntry(const Word* vram, Word tilemapBaseWordAddress, Byte x, Byte y);
+
+		const std::array<Word, 32 * 1024>& vram() const {
+			return _vram;
+		};
+
+		const std::array<Word, 256>& cgram() const {
+			return _cgram;
+		};
+
+		const std::array<Byte, 544>& oam() const {
+			return _oamData;
+		};
 	};
 };
